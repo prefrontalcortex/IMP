@@ -815,6 +815,17 @@ namespace IMP
             public ComputeShader processCompute;
             public Material processingMat;
             
+            public void SetupDefaultShaders()
+            {
+                if (processingMat == null)
+                    processingMat = new Material(Shader.Find("Hidden/XRA/IMP/ImposterProcessing"));
+
+                if (normalBake == null)
+                    normalBake = Shader.Find("Hidden/XRA/IMP/ImposterBakeWorldNormalDepth");
+
+                if (albedoBake == null)
+                    albedoBake = Shader.Find("Hidden/XRA/IMP/ImposterBakeAlbedo");
+            }
         }
 
         private const int GROUP_SIZE = 256;

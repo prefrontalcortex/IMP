@@ -28,12 +28,7 @@ namespace IMP
         private Mesh _cameraRig;
         private BillboardImposter _imposterAsset;
         private Vector3 _origin;
-
-        [SerializeField] private Shader _processingShader;
-        [SerializeField] private Shader _bakeWorldNormalDepthShader;
-        [SerializeField] private Shader _bakeAlbedoShader;
-        [SerializeField] private ComputeShader _processingCompute;
-
+        
         //private static GUIContent _labelResolution = new GUIContent("Resolution", "Resolution of the Imposter Atlas");
         private static GUIContent _labelFrames = new GUIContent("Frames", "Too many frames = low texel density, Too few frames = distortion");
         private static GUIContent _labelHemisphere = new GUIContent("Hemisphere", "Full Sphere or Hemisphere capture, sphere is useful for objects seen at all angles");
@@ -56,44 +51,23 @@ namespace IMP
         private IMPGenerator.BillboardSettings BuildSettings()
         {
             IMPGenerator.BillboardSettings settings = new IMPGenerator.BillboardSettings();
-            settings.albedoBake = _bakeAlbedoShader;
+            settings.SetupDefaultShaders();
             settings.atlasResolution = _atlasResolution;
             settings.createUnityBillboard = _createUnityBillboard;
             settings.frames = _frames;
             settings.isHalf = _isHalf;
-            settings.normalBake = _bakeWorldNormalDepthShader;
-            settings.processCompute = _processingCompute;
             settings.processingMat = _processingMat;
  
             settings.suffix = _suffix;
 
             return settings;
         }
-
-        private void CheckMaterial()
-        {
-            if (_processingShader == null)
-            {
-                _processingShader = Shader.Find("Hidden/XRA/IMP/ImposterProcessing");
-            }
-            if (_processingMat == null && _processingShader != null) _processingMat = new Material(_processingShader);
-
-            if (_bakeWorldNormalDepthShader == null)
-            {
-                _bakeWorldNormalDepthShader = Shader.Find("Hidden/XRA/IMP/ImposterBakeWorldNormalDepth");
-            }
-
-            if (_bakeAlbedoShader == null)
-            {
-                _bakeAlbedoShader = Shader.Find("Hidden/XRA/IMP/ImposterBakeAlbedo");
-            }
-        }
+        
 
         private void OnGUI()
         {
             try
             {
-                CheckMaterial();
                 Draw();
             }
             catch (Exception e)
