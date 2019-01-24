@@ -168,7 +168,7 @@ namespace IMP
         }
 
 
-        private GameObject CreatePrefab(bool destroyAfterSpawn = false, string prefName = "")
+        public GameObject CreatePrefab(bool destroyAfterSpawn = false, string prefName = "")
         {
             var assetPath = AssetDatabase.GetAssetPath(this);
             var folder = assetPath.Substring(0, assetPath.LastIndexOf("/", StringComparison.Ordinal));

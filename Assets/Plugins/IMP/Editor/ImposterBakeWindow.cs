@@ -176,7 +176,11 @@ namespace IMP
                         EditorUtility.DisplayProgressBar("Capturing", "Capturing " + Roots[i].name,
                             (i + 1f) / Roots.Count);
 
-                        IMPGenerator.CaptureViews(Roots[i], _lightingRig, BuildSettings());
+                        IMPGenerator.BillboardSettings settings = BuildSettings();
+
+                        BillboardImposter imposter = IMPGenerator.CaptureViews(Roots[i], _lightingRig, settings);
+                        if (imposter != null)
+                            IMPGenerator.SaveAsset(imposter,settings);
                     }
 
                     EditorUtility.ClearProgressBar();
@@ -188,7 +192,11 @@ namespace IMP
                 {
                     EditorUtility.DisplayProgressBar("Capturing", "Capturing " + _root.name, 1f);
 
-                    IMPGenerator.CaptureViews(_root, _lightingRig, BuildSettings());
+                    IMPGenerator.BillboardSettings settings = BuildSettings();
+
+                    BillboardImposter imposter = IMPGenerator.CaptureViews(_root, _lightingRig, settings);
+                    if (imposter != null)
+                        IMPGenerator.SaveAsset(imposter, settings);
 
                     EditorUtility.ClearProgressBar();
                 }

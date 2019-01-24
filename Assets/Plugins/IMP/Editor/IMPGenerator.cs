@@ -130,17 +130,17 @@ namespace IMP
             return false;
         }
 
-        public static bool CaptureViews(Transform root, Transform lightingRoot, BillboardSettings settings)
+        public static BillboardImposter CaptureViews(Transform root, Transform lightingRoot, BillboardSettings settings)
         {
             BillboardImposter imposterAsset;
             Snapshots[] snapshots;
 
             if (SetupRig(root, settings,out imposterAsset, out snapshots))
-            {
-                return CaptureViews(root, lightingRoot,imposterAsset, snapshots, settings);
-            }
+                if(CaptureViews(root, lightingRoot,imposterAsset, snapshots, settings))
+                    return imposterAsset;
 
-            return false;
+            //Failure
+            return null;
         }
 
         private static bool CaptureViews(Transform root, Transform lightingRoot, BillboardImposter imposter, Snapshots[] snapshots,BillboardSettings settings)
@@ -571,45 +571,49 @@ namespace IMP
             enumerator2.Dispose();
             originalLights.Clear();
 
-            var savePath = "";
-            var file = "";
-            var filePrefab = "";
+            return true;
+        }
+
+        //Save an asset automatically, by either saving alongside the owning prefab,
+        //or asking where to save
+        public static void SaveAsset(BillboardImposter imposter, BillboardSettings settings,bool savePrefab=true)
+        {
+            string assetPath = "";
+            string assetName = "";
             if (imposter.AssetReference != null)
             {
-                savePath = AssetDatabase.GetAssetPath(imposter.AssetReference);
-                var lastSlash = savePath.LastIndexOf("/", StringComparison.Ordinal);
-                var folder = savePath.Substring(0, lastSlash);
-                file = savePath.Substring(lastSlash + 1,
-                    savePath.LastIndexOf(".", StringComparison.Ordinal) - lastSlash - 1);
+                assetPath = AssetDatabase.GetAssetPath(imposter.AssetReference);
+                var lastSlash = assetPath.LastIndexOf("/", StringComparison.Ordinal);
+                var folder = assetPath.Substring(0, lastSlash);
+                assetName = assetPath.Substring(lastSlash + 1,
+                    assetPath.LastIndexOf(".", StringComparison.Ordinal) - lastSlash - 1);
 
-                filePrefab = file;
-
-                savePath = folder + "/" + file + "_Imposter" + ".asset";
+                assetPath = folder + "/" + assetName + "_Imposter" + ".asset";
             }
             else //no prefab, ask where to save
             {
-                file = root.name;
-                savePath = EditorUtility.SaveFilePanelInProject("Save Billboard Imposter", file + "_Imposter", "asset",
+                assetName = imposter.AssetReference.name;
+                assetPath = EditorUtility.SaveFilePanelInProject("Save Billboard Imposter", assetName + "_Imposter", "asset",
                     "Select save location");
             }
 
+            SaveAsset(assetPath, assetName, savePrefab, imposter, settings);
+        }
+
+        //Save an asset to a path
+        public static void SaveAsset(string assetPath, string assetName, bool savePrefab,BillboardImposter imposter,BillboardSettings settings)
+        {
             imposter.PrefabSuffix = settings.suffix;
+            imposter.name = assetName;
 
-            imposter.name = file;
+            AssetDatabase.CreateAsset(imposter, assetPath);
 
-            AssetDatabase.CreateAsset(imposter, savePath);
+            imposter.Save(assetPath, assetName, settings.createUnityBillboard);
 
-            imposter.Save(savePath, file, settings.createUnityBillboard);
-
-            //spawn 
-            var spawned = imposter.Spawn(root.position, true, filePrefab);
-            spawned.transform.position = root.position + new Vector3(2f, 0f, 2f);
-            spawned.transform.rotation = root.rotation;
-            spawned.transform.localScale = originalScale;
-
-            root.localScale = originalScale;
-
-            return true;
+            if(savePrefab)
+            {
+                imposter.CreatePrefab(true, assetName);
+            }
         }
 
         //dumb, use draw procedural
