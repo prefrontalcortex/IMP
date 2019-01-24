@@ -110,6 +110,26 @@ namespace IMP
             return new Vector2(x, y);
         }
 
+        public static bool CaptureViews(GameObject prefab, Transform lightingRoot, BillboardSettings settings)
+        {
+            BillboardImposter imposterAsset;
+            Snapshots[] snapshots;
+
+            //Create root
+            GameObject spawnedPrefab = GameObject.Instantiate(prefab);
+            Transform root = spawnedPrefab.transform;
+
+            bool success = false;
+
+            if (SetupRig(root, settings, out imposterAsset, out snapshots))
+                success = CaptureViews(root, lightingRoot, imposterAsset, snapshots, settings);
+
+            //Cleanup
+            GameObject.DestroyImmediate(prefab);
+
+            return false;
+        }
+
         public static bool CaptureViews(Transform root, Transform lightingRoot, BillboardSettings settings)
         {
             BillboardImposter imposterAsset;
