@@ -441,8 +441,7 @@ namespace IMP
                 Graphics.SetRenderTarget(packFrame);
                 GL.Clear(true, true, clearColor);
                 Graphics.Blit(superSizedFrame, packFrame);
-
-
+                
                 //////////// perform processing on frames
 
                 //pack frame is done first so alpha of base frame can be used as a mask (before distance alpha process)
@@ -452,6 +451,13 @@ namespace IMP
                 //padding / dilate TODO can be improved?
                 int threadsX, threadsY, threadsZ;
                 CalcWorkSize(packFrame.width * packFrame.height, out threadsX, out threadsY, out threadsZ);
+
+                if(settings.processCompute == null)
+                {
+                    Debug.Log("Null compute");
+                    return false;
+                }
+
                 settings.processCompute.SetTexture(0, "Source", packFrame);
                 settings.processCompute.SetTexture(0, "SourceMask", frame);
                 settings.processCompute.SetTexture(0, "Result", tempFrame);
@@ -800,7 +806,7 @@ namespace IMP
             public Vector3 Ray;
         }
 
-        public struct BillboardSettings
+        public class BillboardSettings
         {
             //Settings
             public string suffix;
@@ -809,12 +815,13 @@ namespace IMP
             public bool isHalf;
             public bool createUnityBillboard;
 
+            public ComputeShader processCompute;
+            
             //Generated values
             public Shader albedoBake;
             public Shader normalBake;
-            public ComputeShader processCompute;
             public Material processingMat;
-            
+
             public void SetupDefaultShaders()
             {
                 if (processingMat == null)
@@ -825,6 +832,7 @@ namespace IMP
 
                 if (albedoBake == null)
                     albedoBake = Shader.Find("Hidden/XRA/IMP/ImposterBakeAlbedo");
+                
             }
         }
 

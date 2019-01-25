@@ -21,7 +21,6 @@ namespace IMP
         private static Transform _lightingRig; //root of lighting rig if used
         private static Transform _root;
         private static readonly List<Transform> Roots = new List<Transform>();
-        private static Material _processingMat;
 
         private static bool _createUnityBillboard = false; //attempt at Unity BillboardAsset and BillboardRenderer support
 
@@ -36,6 +35,8 @@ namespace IMP
         private static GUIContent _labelSuffix = new GUIContent("Prefab Suffix", "Appended to Imposter Prefab(s), useful for LOD naming");
         private static GUIContent _labelUnityBillboard = new GUIContent("Create Unity Billboard", "Creates additional Unity Billboard Renderer Asset (WIP)");
         private static GUIContent _labelPreviewSnapshot = new GUIContent("Preview Snapshot Locations", "Draw rays showing camera positions");
+
+        [SerializeField] private ComputeShader _processingCompute;
 
         [MenuItem("Window/IMP", priority = 9000)]
         public static void ShowWindow()
@@ -52,12 +53,13 @@ namespace IMP
         {
             IMPGenerator.BillboardSettings settings = new IMPGenerator.BillboardSettings();
             settings.SetupDefaultShaders();
+            settings.processCompute = _processingCompute;
+
             settings.atlasResolution = _atlasResolution;
             settings.createUnityBillboard = _createUnityBillboard;
             settings.frames = _frames;
             settings.isHalf = _isHalf;
-            settings.processingMat = _processingMat;
- 
+
             settings.suffix = _suffix;
 
             return settings;
@@ -78,18 +80,6 @@ namespace IMP
 
         private void Draw()
         {
-            if (_processingMat == null)
-            {
-                Shader shader = Shader.Find("Hidden/XRA/IMP/ImposterProcessing");
-                if (shader != null)
-                {
-                    _processingMat = new Material(shader);
-                }
-                else
-                {
-                    Debug.LogError("Imposter Baker Material NULL!");
-                }
-            }
             var noSelection = Selection.activeTransform == null;
 
             EditorGUI.BeginChangeCheck(); //check for settings change
