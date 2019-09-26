@@ -73,9 +73,12 @@ half4 BakeNormalsDepth( sampler2D bumpMap, half2 uv, half depth, half4 tangentTo
 
 half4 ImposterBlendWeights( sampler2D tex, half2 uv, half2 frame0, half2 frame1, half2 frame2, half4 weights, half2 ddxy )
 {    
-    half4 samp0 = tex2Dgrad( tex, frame0, ddxy.x, ddxy.y );
-    half4 samp1 = tex2Dgrad( tex, frame1, ddxy.x, ddxy.y );
-    half4 samp2 = tex2Dgrad( tex, frame2, ddxy.x, ddxy.y );
+    //half4 samp0 = tex2Dgrad( tex, frame0, ddxy.x, ddxy.y );
+    //half4 samp1 = tex2Dgrad( tex, frame1, ddxy.x, ddxy.y );
+    //half4 samp2 = tex2Dgrad( tex, frame2, ddxy.x, ddxy.y );
+    half4 samp0 = tex2Dlod(tex, float4(frame0,ddxy.x, ddxy.y));
+    half4 samp1 = tex2Dlod(tex, float4(frame1,ddxy.x, ddxy.y));
+    half4 samp2 = tex2Dlod(tex, float4(frame2,ddxy.x, ddxy.y));
 
     //half4 samp0 = tex2Dlod( tex, float4(frame0,0,0) );
     //half4 samp1 = tex2Dlod( tex, float4(frame1,0,0) );
@@ -272,13 +275,29 @@ half3 SpriteProjection( half3 pivotToCameraRayLocal, half frames, half2 size, ha
     return res;
 }
 
+#ifdef SHADER_API_METAL
+float4 Mul(float4x4 M, float4 v)
+{
+    float4 r;
+    r.x = dot(M._m00_m01_m02_m03, v);
+    r.y = dot(M._m10_m11_m12_m13, v);
+    r.z = dot(M._m20_m21_m22_m23, v);
+    r.w = dot(M._m30_m31_m32_m33, v);
+    return r;
+}
+#endif
+
 void ImposterVertex( inout ImposterData imp )
 {
     //incoming vertex, object space
     half4 vertex = imp.vertex;
     
     //camera in object space
-    half3 objectSpaceCameraPos = mul( unity_WorldToObject, float4(_WorldSpaceCameraPos.xyz,1) ).xyz;
+    #ifdef SHADER_API_METAL
+    float3 objectSpaceCameraPos = Mul(unity_WorldToObject, float4(_WorldSpaceCameraPos.xyz,1) ).xyz;
+    #else
+    float3 objectSpaceCameraPos = mul( unity_WorldToObject, float4(_WorldSpaceCameraPos.xyz,1) ).xyz;
+    #endif
     half2 texcoord = imp.uv;
     float4x4 objectToWorld = unity_ObjectToWorld;
     float4x4 worldToObject = unity_WorldToObject;
@@ -327,7 +346,11 @@ void ImposterVertex( inout ImposterData imp )
     grid = saturate((grid+1.0)*0.5); //bias and scale to 0 to 1 
     grid *= framesMinusOne;
     
+    #ifdef SHADER_API_METAL
+    half2 gridFrac = grid - floor(grid);
+    #else
     half2 gridFrac = frac(grid);
+    #endif
     
     half2 gridFloor = floor(grid);
     
@@ -335,7 +358,11 @@ void ImposterVertex( inout ImposterData imp )
     
     //3 nearest frames
     half2 frame0 = gridFloor;
+    #ifdef SHADER_API_METAL
+    half2 frame1 = gridFloor + half2(0,1) + weights.w * (half2(1,0) - half2(0,1));
+    #else
     half2 frame1 = gridFloor + lerp(half2(0,1),half2(1,0),weights.w);
+    #endif
     half2 frame2 = gridFloor + half2(1,1);
     
     //convert frame coordinate to octahedron direction

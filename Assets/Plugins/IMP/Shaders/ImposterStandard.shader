@@ -1,4 +1,4 @@
-﻿Shader "XRA/IMP/Standard (Surface)" {
+Shader "XRA/IMP/Standard (Surface)" {
 	Properties {
 		_Color ("Color", Color) = (1,1,1,1)
         
@@ -28,9 +28,9 @@
         //AlphaToMask On
         //blend SrcAlpha OneMinusSrcAlpha  
         ZTest LEqual
-        ZWrite on
-        cull back 
-        blend off
+        ZWrite On
+        Cull Back
+        Blend Off
         
 		CGPROGRAM
 		#include "ImposterCommon.cginc"
