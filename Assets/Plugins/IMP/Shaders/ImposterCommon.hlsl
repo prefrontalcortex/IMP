@@ -15,9 +15,9 @@ CBUFFER_END
 TEXTURE2D(_ImposterBaseTex);
 TEXTURE2D(_ImposterWorldNormalDepthTex);
 
-SAMPLER(sampler_PointRepeat);
 SAMPLER(sampler_LinearClamp);
-
+SAMPLER(sampler_ImposterBaseTex);
+SAMPLER(sampler_ImposterWorldNormalDepthTex);
 
 struct ImposterData
 {
@@ -75,7 +75,7 @@ half3 PerPixelWorldNormal(float4 i_tex, half4 tangentToWorld[3])
 
 half4 BakeNormalsDepth( Texture2D bumpMap, half2 uv, half depth, half4 tangentToWorld[3] )
 {
-    half4 tex = SAMPLE_TEXTURE2D( bumpMap, sampler_LinearClamp, uv );
+    half4 tex = SAMPLE_TEXTURE2D(bumpMap, sampler_LinearClamp, uv);
     
     half3 worldNormal = PerPixelWorldNormal(tex, tangentToWorld);
     
@@ -83,11 +83,11 @@ half4 BakeNormalsDepth( Texture2D bumpMap, half2 uv, half depth, half4 tangentTo
 }
 
 
-half4 ImposterBlendWeights( Texture2D tex, half2 uv, half2 frame0, half2 frame1, half2 frame2, half4 weights, half2 ddxy )
+half4 ImposterBlendWeights(TEXTURE2D_PARAM(tex, texSampler), half2 uv, half2 frame0, half2 frame1, half2 frame2, half4 weights, half2 ddxy )
 {    
-    half4 samp0 = SAMPLE_TEXTURE2D_GRAD( tex, sampler_LinearClamp, frame0, ddxy.x, ddxy.y );
-    half4 samp1 = SAMPLE_TEXTURE2D_GRAD( tex, sampler_LinearClamp, frame1, ddxy.x, ddxy.y);
-    half4 samp2 = SAMPLE_TEXTURE2D_GRAD( tex, sampler_LinearClamp, frame2, ddxy.x, ddxy.y);
+    half4 samp0 = SAMPLE_TEXTURE2D_GRAD(tex, texSampler, frame0, ddxy.x, ddxy.y);
+    half4 samp1 = SAMPLE_TEXTURE2D_GRAD(tex, texSampler, frame1, ddxy.x, ddxy.y);
+    half4 samp2 = SAMPLE_TEXTURE2D_GRAD(tex, texSampler, frame2, ddxy.x, ddxy.y);
     
     //half4 samp0 = tex2Dlod( tex, float4(frame0,0,0) );
     //half4 samp1 = tex2Dlod( tex, float4(frame1,0,0) );
@@ -563,9 +563,9 @@ void ImposterSample( in ImposterData imp, out half4 baseTex, out half4 worldNorm
     //vp2uv = clamp(vp2uv,frame2+border,frame2+gridSize-border);
    
     //for parallax modify
-    half4 n0 = SAMPLE_TEXTURE2D(_ImposterWorldNormalDepthTex, sampler_LinearClamp, half4(vp0uv, 0, 1));
-    half4 n1 = SAMPLE_TEXTURE2D(_ImposterWorldNormalDepthTex, sampler_LinearClamp, half4(vp1uv, 0, 1));
-    half4 n2 = SAMPLE_TEXTURE2D(_ImposterWorldNormalDepthTex, sampler_LinearClamp, half4(vp2uv, 0, 1));
+    half4 n0 = SAMPLE_TEXTURE2D(_ImposterWorldNormalDepthTex, sampler_ImposterWorldNormalDepthTex, half4(vp0uv, 0, 1));
+    half4 n1 = SAMPLE_TEXTURE2D(_ImposterWorldNormalDepthTex, sampler_ImposterWorldNormalDepthTex, half4(vp1uv, 0, 1));
+    half4 n2 = SAMPLE_TEXTURE2D(_ImposterWorldNormalDepthTex, sampler_ImposterWorldNormalDepthTex, half4(vp2uv, 0, 1));
         
     half n0s = 0.5-n0.a;    
     half n1s = 0.5-n1.a;
@@ -587,8 +587,8 @@ void ImposterSample( in ImposterData imp, out half4 baseTex, out half4 worldNorm
     
     half2 ddxy = half2( ddx(imp.uv.x), ddy(imp.uv.y) );
     
-    worldNormal = ImposterBlendWeights( _ImposterWorldNormalDepthTex, imp.uv, vp0uv, vp1uv, vp2uv, weights, ddxy );
-    baseTex = ImposterBlendWeights( _ImposterBaseTex, imp.uv, vp0uv, vp1uv, vp2uv, weights, ddxy );
+    worldNormal = ImposterBlendWeights(TEXTURE2D_ARGS(_ImposterWorldNormalDepthTex, sampler_ImposterWorldNormalDepthTex), imp.uv, vp0uv, vp1uv, vp2uv, weights, ddxy);
+    baseTex = ImposterBlendWeights(TEXTURE2D_ARGS(_ImposterBaseTex, sampler_ImposterBaseTex), imp.uv, vp0uv, vp1uv, vp2uv, weights, ddxy);
         
     //pixel depth offset
     //half pdo = 1-baseTex.a;
