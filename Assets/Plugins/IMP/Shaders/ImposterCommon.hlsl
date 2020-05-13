@@ -2,22 +2,10 @@
 #define XRA_IMPOSTERCOMMON_CGINC
 
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 
-CBUFFER_START(Bar)
-half _ImposterFrames;
-half _ImposterSize;
-half3 _ImposterOffset;
-half _ImposterFullSphere;
-half _ImposterBorderClamp;
-float4 _ImposterBaseTex_TexelSize;
-CBUFFER_END
 
-TEXTURE2D(_ImposterBaseTex);
-TEXTURE2D(_ImposterWorldNormalDepthTex);
 
-SAMPLER(sampler_LinearClamp);
-SAMPLER(sampler_ImposterBaseTex);
-SAMPLER(sampler_ImposterWorldNormalDepthTex);
 
 struct ImposterData
 {
