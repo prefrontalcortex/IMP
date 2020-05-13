@@ -258,16 +258,41 @@ half2 VirtualPlaneUV( half3 planeNormal, half3 planeX, half3 planeZ, half3 cente
     return uv;
 }
 
-
-half3 SpriteProjection( half3 pivotToCameraRayLocal, half frames, half2 size, half2 coord )
+half3 SpriteProjection(half3 pivotToCameraRayLocal, half frames, half2 size, half2 coord)
 {
     half3 gridVec = pivotToCameraRayLocal;
     
     //octahedron vector, pivot to camera
-    half3 y = normalize(gridVec);
+    half3 y = normalize(gridVec); // Normal
     
-    half3 x = normalize( cross( y, half3(0.0, 1.0, 0.0) ) );
-    half3 z = normalize( cross( x, y ) );
+    half3 x = normalize(cross(y, half3(0.0, 1.0, 0.0))); // Right tangent
+    half3 z = normalize(cross(x, y)); // Up tangent
+
+    half2 uv = ((coord * frames) - 0.5) * 2.0; //-1 to 1 
+
+    half3 newX = x * uv.x;
+    half3 newZ = z * uv.y;
+    
+    half2 halfSize = size * 0.5;
+    
+    newX *= halfSize.x;
+    newZ *= halfSize.y;
+    
+    half3 res = newX + newZ;
+     
+    return res;
+}
+
+
+half3 SpriteProjectionOLD( half3 pivotToCameraRayLocal, half frames, half2 size, half2 coord )
+{
+    half3 gridVec = pivotToCameraRayLocal;
+    
+    //octahedron vector, pivot to camera
+    half3 y = normalize(gridVec); // Normal
+    
+    half3 x = normalize(cross(y, half3(0.0, 1.0, 0.0))); // Right tangent
+    half3 z = normalize(cross(x, y)); // Up tangent
 
     half2 uv = ((coord*frames)-0.5) * 2.0; //-1 to 1 
 
@@ -427,23 +452,6 @@ void ImposterVertexShadow(inout ImposterData imp)
     float3 lightDirOS = TransformWorldToObjectDir(mainLight.direction);
     
     half3 projected = SpriteProjection(lightDirOS, _ImposterFrames, size, texcoord.xy);
-
-    ////this creates the proper offset for vertices to camera facing billboard
-    //half3 vertexOffset = projected + imposterPivotOffset;
-    ////subtract from camera pos 
-    //vertexOffset = normalize(objectSpaceCameraPos - vertexOffset);
-    ////then add the original projected world
-    //vertexOffset += projected;
-    ////remove position of vertex
-    //vertexOffset -= vertex.xyz;
-    ////add pivot
-    //vertexOffset += imposterPivotOffset;
-
-    ////camera to projection vector
-    //half3 rayDirectionLocal = (imposterPivotOffset + projected) - objectSpaceCameraPos;
-                 
-    ////projected position to camera ray
-    //half3 projInterpolated = normalize(objectSpaceCameraPos - (projected + imposterPivotOffset));
     
     half3 objectSpaceCameraPos = lightDirOS * _ImposterSize * 10000;
     half3 rayDirectionLocal = (imposterPivotOffset + projected) - objectSpaceCameraPos;
@@ -516,11 +524,6 @@ void ImposterVertexShadow(inout ImposterData imp)
     imp.frame0 = half4(vUv0.xy, frame0local.xz);
     imp.frame1 = half4(vUv1.xy, frame1local.xz);
     imp.frame2 = half4(vUv2.xy, frame2local.xz);
-    
-
-    //imp.frame0.xyz = float3(frame0local.xz, 0);
-    //imp.frame0.xyz = frame0ray;
-    //imp.frame0.xyz = projInterpolated;
 }
 
 void ImposterSample( in ImposterData imp, out half4 baseTex, out half4 worldNormal )//, out half depth )

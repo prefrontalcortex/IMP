@@ -101,16 +101,6 @@
 			half4 _Color;
 			CBUFFER_END
 
-			struct appdata_full
-			{
-				float4 vertex    : POSITION;  // The vertex position in model space.
-				float3 normal    : NORMAL;    // The vertex normal in model space.
-				float4 texcoord  : TEXCOORD0; // The first UV coordinate.
-				float4 texcoord1 : TEXCOORD1; // The second UV coordinate.
-				float4 tangent   : TANGENT;   // The tangent vector in Model Space (used for normal mapping).
-				float4 color     : COLOR;     // Per-vertex color
-			};
-
             struct Attributes
             {
                 float4 positionOS   : POSITION;
@@ -139,21 +129,6 @@
                 float4 positionCS               : SV_POSITION;
             };
 
-			struct v2f
-			{
-				float4 vertex : POSITION;
-				float4 uvAndGrid : TEXCOORD0;
-				float4 plane0 : TEXCOORD1;
-				float4 plane1 : TEXCOORD2;
-				float4 plane2 : TEXCOORD3;
-				float3 tangentWorld : TEXCOORD4;
-				float3 bitangentWorld : TEXCOORD5;
-				float3 normalWorld : TEXCOORD6;
-				float4 screenPos : TEXCOORD7;
-			};
-
-
-
 			inline half3x3 CreateTangentToWorldPerVertex(half3 normal, half3 tangent, half tangentSign)
 			{
 				// For odd-negative scale transforms we need to flip the sign
@@ -172,8 +147,8 @@
 				ImposterVertex(imp);
 
 				float4 positionOS = imp.vertex;
-				float4 positionCS = TransformObjectToHClip(positionOS);
-				float3 positionWS = TransformObjectToWorld(positionOS);
+				float4 positionCS = TransformObjectToHClip(positionOS.xyz);
+				float3 positionWS = TransformObjectToWorld(positionOS.xyz);
 				float fogFactor = ComputeFogFactor(positionCS.z);
 				float3 normalWS = TransformObjectToWorldDir(input.normalOS.xyz);
 				float3 tangentWS = TransformObjectToWorldDir(input.tangentOS.xyz);
@@ -188,8 +163,8 @@
 				output.plane0 = imp.frame0;
 				output.plane1 = imp.frame1;
 				output.plane2 = imp.frame2;
-				output.positionCS = positionCS;
 				output.positionWSAndFogFactor = float4(positionWS, fogFactor);
+				output.positionCS = positionCS;
 
 				return output;
 			}
@@ -277,7 +252,7 @@
 				// You can write your own function to initialize the surface data of your shader.
 				SurfaceData surfaceData;
 
-				surfaceData.albedo = baseTex.rgb * _Color;
+				surfaceData.albedo = baseTex.rgb * _Color.rgb;
 				surfaceData.alpha = baseTex.a;
 				surfaceData.metallic = _Metallic;
 				surfaceData.smoothness = _Glossiness;
@@ -394,7 +369,8 @@
             #pragma fragment ShadowCasterPassFragment
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+			#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+			#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/Shaders/LitInput.hlsl"
 			#include "ImposterCommon.hlsl"
 
@@ -439,6 +415,19 @@
 				return half3x3(tangent, binormal, normal);
 			}
 
+			float3 _LightDirection;
+			float4 GetShadowPositionHClip(float3 positionWS, half3 normalWS) {
+				float4 positionCS = TransformWorldToHClip(ApplyShadowBias(positionWS, normalWS, _LightDirection));
+
+#if UNITY_REVERSED_Z
+				positionCS.z = min(positionCS.z, positionCS.w * UNITY_NEAR_CLIP_VALUE);
+#else
+				positionCS.z = max(positionCS.z, positionCS.w * UNITY_NEAR_CLIP_VALUE);
+#endif
+				return positionCS;
+			}
+
+
 			Varyings ShadowCasterPassVertex(Attributes input)
 			{
 				Varyings output;
@@ -449,18 +438,17 @@
 				ImposterVertexShadow(imp);
 
 				float4 positionOS = imp.vertex;
-				float4 positionCS = TransformObjectToHClip(positionOS);
 				float3 positionWS = TransformObjectToWorld(positionOS);
-				float fogFactor = ComputeFogFactor(positionCS.z);
 				float3 normalWS = TransformObjectToWorldDir(input.normalOS.xyz);
 				float3 tangentWS = TransformObjectToWorldDir(input.tangentOS.xyz);
 				float3x3 tangentToWorld = CreateTangentToWorldPerVertex(normalWS, tangentWS, input.tangentOS.w);
-
+				float4 positionCS = GetShadowPositionHClip(positionWS, normalWS);
+				float fogFactor = ComputeFogFactor(positionCS.z);
 
 				output.tangentWS = tangentToWorld[0];
 				output.bitangentWS = tangentToWorld[1];
 				output.normalWS = tangentToWorld[2];
-				output.uvAndGrid.xy = input.uv;//imp.uv;
+				output.uvAndGrid.xy = imp.uv;
 				output.uvAndGrid.zw = imp.grid;
 				output.plane0 = imp.frame0;
 				output.plane1 = imp.frame1;
@@ -498,86 +486,3 @@
 	
 	//CustomEditor "StandardShaderGUI"
 }
-
-//half4 LitPassFragmentOld(Varyings input) : SV_Target
-//{
-//	//TODO make feature with custom material inspector
-//	#if defined(LOD_FADE_CROSSFADE)
-//		LODDitheringTransition(input.vertex.xy, unity_LODFade.x);
-//	#endif
-//
-//	ImposterData imp;
-//	//set inputs
-//	imp.uv = input.uvAndGrid.xy;
-//	imp.grid = input.uvAndGrid.zw;
-//	imp.frame0 = input.plane0;
-//	imp.frame1 = input.plane1;
-//	imp.frame2 = input.plane2;
-//
-//	//perform texture sampling
-//	half4 baseTex;
-//	half4 normalTex;
-//
-//	ImposterSample(imp, baseTex, normalTex);
-//
-//	baseTex.a = saturate(pow(baseTex.a,_Cutoff));
-//	clip(baseTex.a - _Cutoff);
-//
-//	//scale world normal back to -1 to 1
-//	half3 worldNormal = normalTex.xyz * 2 - 1;
-//
-//	//this works but not ideal
-//	worldNormal = TransformObjectToWorldNormal(worldNormal); //mul( unity_ObjectToWorld, half4(worldNormal,0) ).xyz;
-//
-//	half depth = normalTex.w; //maybe for pixel depth?
-//
-//	half3 t = input.tangentWS;
-//	half3 b = input.bitangentWS;
-//	half3 n = input.normalWS;
-//
-//	//from UnityStandardCore.cginc 
-//	#if UNITY_TANGENT_ORTHONORMALIZE
-//		n = normalize(n);
-//
-//		//ortho-normalize Tangent
-//		t = normalize(t - n * dot(t, n));
-//
-//		//recalculate Binormal
-//		half3 newB = cross(n, t);
-//		b = newB * sign(dot(newB, b));
-//	#endif
-//	half3x3 tangentToWorld = half3x3(t, b, n);
-//
-//	//o well
-//	//o.Normal = normalize(mul(tangentToWorld, worldNormal));
-////        
-//			//o.Albedo = baseTex.rgb * _Color.rgb;
-//			//o.Alpha = baseTex.a;
-//			//o.Metallic = _Metallic;
-//			//o.Smoothness = _Glossiness;
-//			//o.Occlusion = 1;	
-//
-//			//return baseTex;
-//
-//			float3 normalWS = normalize(mul(tangentToWorld, worldNormal));
-//			//return half4(worldNormal, 1);
-//			Light mainLight = GetMainLight();
-//			float nDotL = dot(mainLight.direction, worldNormal);
-//
-//			half4 color = baseTex;
-//			color.xyz *= nDotL;
-//
-//#ifdef LIGHTMAP_ON
-//			// Normal is required in case Directional lightmaps are baked
-//			half3 bakedGI = SampleLightmap(input.uvLM, worldNormal);
-//#else
-//			// Samples SH fully per-pixel. SampleSHVertex and SampleSHPixel functions
-//			// are also defined in case you want to sample some terms per-vertex.
-//			half3 bakedGI = SampleSH(worldNormal);
-//#endif
-//				color.rgb = baseTex.rgb * bakedGI;
-//				color.rgb += saturate(baseTex.rgb * nDotL);
-//				//color.a = baseTex.a;
-//
-//				return color;
-//}
