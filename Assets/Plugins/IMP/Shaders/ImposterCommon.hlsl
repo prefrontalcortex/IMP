@@ -566,9 +566,9 @@ void ImposterSample( in ImposterData imp, out half4 baseTex, out half4 worldNorm
     //vp2uv = clamp(vp2uv,frame2+border,frame2+gridSize-border);
    
     //for parallax modify
-    half4 n0 = SAMPLE_TEXTURE2D(_ImposterWorldNormalDepthTex, sampler_ImposterWorldNormalDepthTex, half4(vp0uv, 0, 1));
-    half4 n1 = SAMPLE_TEXTURE2D(_ImposterWorldNormalDepthTex, sampler_ImposterWorldNormalDepthTex, half4(vp1uv, 0, 1));
-    half4 n2 = SAMPLE_TEXTURE2D(_ImposterWorldNormalDepthTex, sampler_ImposterWorldNormalDepthTex, half4(vp2uv, 0, 1));
+    half4 n0 = SAMPLE_TEXTURE2D_LOD(_ImposterWorldNormalDepthTex, sampler_ImposterWorldNormalDepthTex, vp0uv, 1);
+    half4 n1 = SAMPLE_TEXTURE2D_LOD(_ImposterWorldNormalDepthTex, sampler_ImposterWorldNormalDepthTex, vp1uv, 1);
+    half4 n2 = SAMPLE_TEXTURE2D_LOD(_ImposterWorldNormalDepthTex, sampler_ImposterWorldNormalDepthTex, vp2uv, 1);
         
     half n0s = 0.5-n0.a;    
     half n1s = 0.5-n1.a;

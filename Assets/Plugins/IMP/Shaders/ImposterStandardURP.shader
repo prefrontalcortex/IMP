@@ -385,22 +385,12 @@
                 float3 normalOS     : NORMAL;
                 float4 tangentOS    : TANGENT;
                 float2 uv           : TEXCOORD0;
-                float2 uvLM         : TEXCOORD1;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
             struct Varyings
             {
                 float4 uvAndGrid                : TEXCOORD0;
-                float2 uvLM                     : TEXCOORD1;
-                float4 positionWSAndFogFactor   : TEXCOORD2; // xyz: positionWS, w: vertex fog factor
-                half3  normalWS                 : TEXCOORD3;
-                half3 tangentWS                 : TEXCOORD4;
-                half3 bitangentWS               : TEXCOORD5;
-
-#ifdef _MAIN_LIGHT_SHADOWS
-                float4 shadowCoord              : TEXCOORD6; // compute shadow coord per-vertex for the main light
-#endif
 				float4 plane0					: TEXCOORD7;
 				float4 plane1					: TEXCOORD8;
 				float4 plane2					: TEXCOORD9;
@@ -440,21 +430,14 @@
 				float4 positionOS = imp.vertex;
 				float3 positionWS = TransformObjectToWorld(positionOS);
 				float3 normalWS = TransformObjectToWorldDir(input.normalOS.xyz);
-				float3 tangentWS = TransformObjectToWorldDir(input.tangentOS.xyz);
-				float3x3 tangentToWorld = CreateTangentToWorldPerVertex(normalWS, tangentWS, input.tangentOS.w);
 				float4 positionCS = GetShadowPositionHClip(positionWS, normalWS);
-				float fogFactor = ComputeFogFactor(positionCS.z);
 
-				output.tangentWS = tangentToWorld[0];
-				output.bitangentWS = tangentToWorld[1];
-				output.normalWS = tangentToWorld[2];
 				output.uvAndGrid.xy = imp.uv;
 				output.uvAndGrid.zw = imp.grid;
 				output.plane0 = imp.frame0;
 				output.plane1 = imp.frame1;
 				output.plane2 = imp.frame2;
 				output.positionCS = positionCS;
-				output.positionWSAndFogFactor = float4(positionWS, fogFactor);
 
 				return output;
 			}
@@ -472,6 +455,7 @@
 				half4 baseTex;
 				half4 normalTex;
 		    
+				// TODO: Don't need normal for shadows
 				ImposterSample(imp, baseTex, normalTex);
 				baseTex.a = saturate( pow(baseTex.a,_Cutoff) );
 				clip(baseTex.a-_Cutoff);
