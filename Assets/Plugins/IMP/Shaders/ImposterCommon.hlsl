@@ -4,9 +4,6 @@
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 
-
-
-
 struct ImposterData
 {
     half2 uv;
@@ -15,6 +12,7 @@ struct ImposterData
     half4 frame1;
     half4 frame2;
     half4 vertex;
+    float3 billboardNormalOS;
 };
 
 struct Ray
@@ -82,7 +80,7 @@ half4 ImposterBlendWeights(TEXTURE2D_PARAM(tex, texSampler), half2 uv, half2 fra
     //half4 samp2 = tex2Dlod( tex, float4(frame2,0,0) );
 
     half4 result = samp0 * weights.x + samp1 * weights.y + samp2 * weights.z;
-    
+
     return result;
 }
 
@@ -267,33 +265,7 @@ half3 SpriteProjection(half3 pivotToCameraRayLocal, half frames, half2 size, hal
     newZ *= halfSize.y;
     
     half3 res = newX + newZ;
-     
-    return res;
-}
 
-
-half3 SpriteProjectionOLD( half3 pivotToCameraRayLocal, half frames, half2 size, half2 coord )
-{
-    half3 gridVec = pivotToCameraRayLocal;
-    
-    //octahedron vector, pivot to camera
-    half3 y = normalize(gridVec); // Normal
-    
-    half3 x = normalize(cross(y, half3(0.0, 1.0, 0.0))); // Right tangent
-    half3 z = normalize(cross(x, y)); // Up tangent
-
-    half2 uv = ((coord*frames)-0.5) * 2.0; //-1 to 1 
-
-    half3 newX = x * uv.x;
-    half3 newZ = z * uv.y;
-    
-    half2 halfSize = size*0.5;
-    
-    newX *= halfSize.x;
-    newZ *= halfSize.y;
-    
-    half3 res = newX + newZ;  
-     
     return res;
 }
 
@@ -401,14 +373,18 @@ void ImposterVertex( inout ImposterData imp )
     half2 vUv2 = VirtualPlaneUV( plane2normal, plane2x, plane2z, planeCenter, size, rayLocal );
     vUv2 /= _ImposterFrames.xx;
     
-    //add offset here
-    imp.vertex.xyz += vertexOffset;
+    // TODO: Investigate why the original author used 'imp.vertex.xyz += vertexOffset'
+    // I'm at a loss as to why the billboard should be relative to the original mesh vertex position
+    //imp.vertex.xyz += vertexOffset;
+    imp.vertex.xyz = projected + _ImposterOffset;
+    
     //overwrite others
     imp.uv = texcoord;
     imp.grid = grid;
     imp.frame0 = half4(vUv0.xy,frame0local.xz);
     imp.frame1 = half4(vUv1.xy,frame1local.xz);
     imp.frame2 = half4(vUv2.xy,frame2local.xz);
+    imp.billboardNormalOS = pivotToCameraRay;
 }
 
 void ImposterVertexShadow(inout ImposterData imp)
@@ -504,17 +480,18 @@ void ImposterVertexShadow(inout ImposterData imp)
     
     //add offset here
     //imp.vertex.xyz += vertexOffset;
-    
     imp.vertex.xyz = projected + _ImposterOffset.xyz;
+    
     //overwrite others
     imp.uv = texcoord;
     imp.grid = grid;
     imp.frame0 = half4(vUv0.xy, frame0local.xz);
     imp.frame1 = half4(vUv1.xy, frame1local.xz);
     imp.frame2 = half4(vUv2.xy, frame2local.xz);
+    imp.billboardNormalOS = lightDirOS;
 }
 
-void ImposterSample( in ImposterData imp, out half4 baseTex, out half4 worldNormal )//, out half depth )
+void ImposterSample( in ImposterData imp, out half4 baseTex, out half4 worldNormal)
 {
     half2 fracGrid = frac(imp.grid);
     
@@ -581,14 +558,14 @@ void ImposterSample( in ImposterData imp, out half4 baseTex, out half4 worldNorm
     worldNormal = ImposterBlendWeights(TEXTURE2D_ARGS(_ImposterWorldNormalDepthTex, sampler_ImposterWorldNormalDepthTex), imp.uv, vp0uv, vp1uv, vp2uv, weights, ddxy);
     baseTex = ImposterBlendWeights(TEXTURE2D_ARGS(_ImposterBaseTex, sampler_ImposterBaseTex), imp.uv, vp0uv, vp1uv, vp2uv, weights, ddxy);
         
-    //pixel depth offset
-    //half pdo = 1-baseTex.a;
+    ////pixel depth offset
+    //half pdo = 1 - worldNormal.a;
     //float3 objectScale = float3(length(float3(unity_ObjectToWorld[0].x, unity_ObjectToWorld[1].x, unity_ObjectToWorld[2].x)),
-    //                        length(float3(unity_ObjectToWorld[0].y, unity_ObjectToWorld[1].y, unity_ObjectToWorld[2].y)),
-    //                        length(float3(unity_ObjectToWorld[0].z, unity_ObjectToWorld[1].z, unity_ObjectToWorld[2].z)));
-    //half2 size = _ImposterSize.xx * 2.0;// * objectScale.xx;  
-    //half3 viewWorld = mul( UNITY_MATRIX_VP, float4(0,0,1,0) ).xyz;
-    //pdo *= size * abs(dot(normalize(imp.viewDirWorld.xyz),viewWorld));
+    //                            length(float3(unity_ObjectToWorld[0].y, unity_ObjectToWorld[1].y, unity_ObjectToWorld[2].y)),
+    //                            length(float3(unity_ObjectToWorld[0].z, unity_ObjectToWorld[1].z, unity_ObjectToWorld[2].z)));
+    //half2 size = _ImposterSize.xx * 2.0; // * objectScale.xx;  
+    //half3 viewWorld = mul(UNITY_MATRIX_VP, float4(0, 0, 1, 0)).xyz;
+    //pdo *= size * abs(dot(normalize(imp.viewDirWorld.xyz), viewWorld));
     //depth = pdo;
 }
 

@@ -611,65 +611,65 @@ public class ImposterBakeWindow : EditorWindow
 
             ////////////// perform processing on frames
 
-            ////pack frame is done first so alpha of base frame can be used as a mask (before distance alpha process)
-            //Graphics.SetRenderTarget(tempFrame);
-            //GL.Clear(true, true, Color.clear);
+            //pack frame is done first so alpha of base frame can be used as a mask (before distance alpha process)
+            Graphics.SetRenderTarget(tempFrame);
+            GL.Clear(true, true, Color.clear);
 
-            ////padding / dilate TODO can be improved?
-            //int threadsX, threadsY, threadsZ;
-            //CalcWorkSize(packFrame.width * packFrame.height, out threadsX, out threadsY, out threadsZ);
-            //processCompute.SetTexture(0, "Source", packFrame);
-            //processCompute.SetTexture(0, "SourceMask", frame);
-            //processCompute.SetTexture(0, "Result", tempFrame);
-            //processCompute.SetBool("AllChannels", true);
-            //processCompute.SetBool("NormalsDepth", true);
-            //processCompute.Dispatch(0, threadsX, threadsY, threadsZ);
+            //padding / dilate TODO can be improved?
+            int threadsX, threadsY, threadsZ;
+            CalcWorkSize(packFrame.width * packFrame.height, out threadsX, out threadsY, out threadsZ);
+            processCompute.SetTexture(0, "Source", packFrame);
+            processCompute.SetTexture(0, "SourceMask", frame);
+            processCompute.SetTexture(0, "Result", tempFrame);
+            processCompute.SetBool("AllChannels", true);
+            processCompute.SetBool("NormalsDepth", true);
+            processCompute.Dispatch(0, threadsX, threadsY, threadsZ);
 
-            //Graphics.Blit(tempFrame, packFrame);
+            Graphics.Blit(tempFrame, packFrame);
 
-            ////Perform processing on base atlas, Albedo + alpha (alpha is modified)
-            //Graphics.SetRenderTarget(tempFrame);
-            //GL.Clear(true, true, Color.clear);
+            //Perform processing on base atlas, Albedo + alpha (alpha is modified)
+            Graphics.SetRenderTarget(tempFrame);
+            GL.Clear(true, true, Color.clear);
 
-            ////padding / dilate
-            //CalcWorkSize(frame.width * frame.height, out threadsX, out threadsY, out threadsZ);
-            //processCompute.SetTexture(0, "Source", frame);
-            //processCompute.SetTexture(0, "SourceMask", frame);
-            //processCompute.SetTexture(0, "Result", tempFrame);
-            //processCompute.SetBool("AllChannels", false);
-            //processCompute.SetBool("NormalsDepth", false);
-            //processCompute.Dispatch(0, threadsX, threadsY, threadsZ);
+            //padding / dilate
+            CalcWorkSize(frame.width * frame.height, out threadsX, out threadsY, out threadsZ);
+            processCompute.SetTexture(0, "Source", frame);
+            processCompute.SetTexture(0, "SourceMask", frame);
+            processCompute.SetTexture(0, "Result", tempFrame);
+            processCompute.SetBool("AllChannels", false);
+            processCompute.SetBool("NormalsDepth", false);
+            processCompute.Dispatch(0, threadsX, threadsY, threadsZ);
 
-            //Graphics.Blit(tempFrame, frame);
+            Graphics.Blit(tempFrame, frame);
 
-            //Graphics.SetRenderTarget(tempFrame);
-            //GL.Clear(true, true, Color.clear);
+            Graphics.SetRenderTarget(tempFrame);
+            GL.Clear(true, true, Color.clear);
 
-            ////distance field alpha
-            ////step 1 store min distance to unfilled alpha
-            //CalcWorkSize(frame.width * frame.height, out threadsX, out threadsY, out threadsZ);
-            //processCompute.SetTexture(1, "Source", frame);
-            //processCompute.SetTexture(1, "SourceMask", frame);
-            //processCompute.SetBuffer(1, "MinDistances", minDistancesBuffer);
-            //processCompute.Dispatch(1, threadsX, threadsY, threadsZ);
+            //distance field alpha
+            //step 1 store min distance to unfilled alpha
+            CalcWorkSize(frame.width * frame.height, out threadsX, out threadsY, out threadsZ);
+            processCompute.SetTexture(1, "Source", frame);
+            processCompute.SetTexture(1, "SourceMask", frame);
+            processCompute.SetBuffer(1, "MinDistances", minDistancesBuffer);
+            processCompute.Dispatch(1, threadsX, threadsY, threadsZ);
 
-            ////step 2 write maximum of the min distances to MaxDistanceBuffer[0]
-            ////also reset the min distances to 0 during this kernel
-            //processCompute.SetInt("MinDistancesLength", minDistancesBuffer.count);
-            //processCompute.SetBuffer(2, "MaxOfMinDistances", maxDistanceBuffer);
-            //processCompute.SetBuffer(2, "MinDistances", minDistancesBuffer);
-            //processCompute.Dispatch(2, 1, 1, 1);
+            //step 2 write maximum of the min distances to MaxDistanceBuffer[0]
+            //also reset the min distances to 0 during this kernel
+            processCompute.SetInt("MinDistancesLength", minDistancesBuffer.count);
+            processCompute.SetBuffer(2, "MaxOfMinDistances", maxDistanceBuffer);
+            processCompute.SetBuffer(2, "MinDistances", minDistancesBuffer);
+            processCompute.Dispatch(2, 1, 1, 1);
 
-            ////step 3 write min distance / max of min to temp frame
-            //CalcWorkSize(frame.width * frame.height, out threadsX, out threadsY, out threadsZ);
-            //processCompute.SetTexture(3, "Source", frame);
-            //processCompute.SetTexture(3, "SourceMask", frame);
-            //processCompute.SetTexture(3, "Result", tempFrame);
-            //processCompute.SetBuffer(3, "MinDistances", minDistancesBuffer);
-            //processCompute.SetBuffer(3, "MaxOfMinDistances", maxDistanceBuffer);
-            //processCompute.Dispatch(3, threadsX, threadsY, threadsZ);
+            //step 3 write min distance / max of min to temp frame
+            CalcWorkSize(frame.width * frame.height, out threadsX, out threadsY, out threadsZ);
+            processCompute.SetTexture(3, "Source", frame);
+            processCompute.SetTexture(3, "SourceMask", frame);
+            processCompute.SetTexture(3, "Result", tempFrame);
+            processCompute.SetBuffer(3, "MinDistances", minDistancesBuffer);
+            processCompute.SetBuffer(3, "MaxOfMinDistances", maxDistanceBuffer);
+            processCompute.Dispatch(3, threadsX, threadsY, threadsZ);
 
-            //Graphics.Blit(tempFrame, frame);
+            Graphics.Blit(tempFrame, frame);
 
             //convert 1D index to flattened octahedra coordinate
             int x;

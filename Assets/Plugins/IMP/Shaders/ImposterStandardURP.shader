@@ -132,6 +132,8 @@
             #pragma exclude_renderers d3d11_9x
             #pragma target 2.0
 
+			//#pragma multi_compile _ LOD_FADE_CROSSFADE
+
             //--------------------------------------
             // GPU Instancing
             #pragma multi_compile_instancing

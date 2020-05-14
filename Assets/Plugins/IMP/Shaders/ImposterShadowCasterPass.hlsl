@@ -52,7 +52,6 @@ Varyings ShadowCasterPassVertex(Attributes input)
     Varyings output = (Varyings) 0;
     
     UNITY_SETUP_INSTANCE_ID(input);
-    //UNITY_TRANSFER_INSTANCE_ID(input, output);
     UNITY_TRANSFER_INSTANCE_ID(input, output);
 
     ImposterData imp;
@@ -75,9 +74,13 @@ Varyings ShadowCasterPassVertex(Attributes input)
     return output;
 }
 
-half4 ShadowCasterPassFragment(Varyings input) : SV_Target
+half4 ShadowCasterPassFragment(Varyings input/*, out float depth : DEPTH*/) : SV_Target
 {
     UNITY_SETUP_INSTANCE_ID(input);
+    
+//#if defined(LOD_FADE_CROSSFADE)
+//	LODDitheringTransition(input.positionCS.xy, unity_LODFade.x);
+//#endif
     
     ImposterData imp;
     imp.uv = input.uvAndGrid.xy;

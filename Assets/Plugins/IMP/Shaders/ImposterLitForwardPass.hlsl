@@ -59,7 +59,7 @@ Varyings LitPassVertex(Attributes input)
 	float4 positionCS = TransformObjectToHClip(positionOS.xyz);
 	float3 positionWS = TransformObjectToWorld(positionOS.xyz);
 	float fogFactor = ComputeFogFactor(positionCS.z);
-	float3 normalWS = TransformObjectToWorldDir(input.normalOS.xyz);
+    float3 normalWS = TransformObjectToWorldDir(imp.billboardNormalOS);
 	float3 tangentWS = TransformObjectToWorldDir(input.tangentOS.xyz);
 	float3x3 tangentToWorld = CreateTangentToWorldPerVertex(normalWS, tangentWS, input.tangentOS.w);
 
@@ -77,14 +77,19 @@ Varyings LitPassVertex(Attributes input)
 	return output;
 }
 
-half4 LitPassFragment(Varyings input) : SV_Target
+float3 ReconstructWorldSpacePosition(float3 positionWS, float3 normalWS, float depthOffset) {
+    return positionWS + normalWS * (depthOffset - 0.5) * _ImposterSize * -2;
+}
+
+half4 LitPassFragment(Varyings input/*, out half outputDepth : DEPTH*/) : SV_Target
 {
     UNITY_SETUP_INSTANCE_ID(input);
     
 #if defined(LOD_FADE_CROSSFADE)
 	LODDitheringTransition(input.positionCS.xy, unity_LODFade.x);
 #endif
-
+    
+    
 	ImposterData imp;
 	imp.uv = input.uvAndGrid.xy;
 	imp.grid = input.uvAndGrid.zw;
@@ -97,24 +102,22 @@ half4 LitPassFragment(Varyings input) : SV_Target
 	half4 normalTex;
 		    
 	ImposterSample(imp, baseTex, normalTex);
+    
 	baseTex.a = saturate(pow(baseTex.a, _Cutoff));
 	clip(baseTex.a - _Cutoff);
-
-				
 
 	//scale world normal back to -1 to 1
 	half3 normalOS = normalTex.xyz * 2 - 1;
 	half3 normalWS = TransformObjectToWorldNormal(normalOS);
 
-	half depth = normalTex.w; //maybe for pixel depth?
-            
-	half3 t = input.tangentWS;
-	half3 b = input.bitangentWS;
-	half3 n = input.normalWS;
+//	half3 t = input.tangentWS;
+//	half3 b = input.bitangentWS;
+//	half3 n = input.normalWS;
+    
         
-	// TODO: What purpose did this serve?
+//	// TODO: What purpose did this serve?
 	
-//	//from UnityStandardCore.cginc 
+////	//from UnityStandardCore.cginc 
 //#if UNITY_TANGENT_ORTHONORMALIZE
 //	n = normalize(n);
         
@@ -125,7 +128,7 @@ half4 LitPassFragment(Varyings input) : SV_Target
 //	half3 newB = cross(n, t);
 //	b = newB * sign (dot (newB, b));
 //#endif
-//	half3x3 tangentToWorld = half3x3(t, b, n);
+//    half3x3 tangentToWorld = half3x3(t, b, n);
 
 
 #ifdef LIGHTMAP_ON
@@ -137,27 +140,17 @@ half4 LitPassFragment(Varyings input) : SV_Target
 	half3 bakedGI = SampleSH(normalWS);
 #endif
 
-	float3 positionWS = input.positionWSAndFogFactor.xyz;
-	half3 viewDirectionWS = SafeNormalize(GetCameraPositionWS() - positionWS);
-
-
-//#ifdef _MAIN_LIGHT_SHADOWS
-//	float4 shadowCoord;
-//#if defined(REQUIRES_VERTEX_SHADOW_COORD_INTERPOLATOR)
-//	shadowCoord = input.shadowCoord;
-//#elif defined(MAIN_LIGHT_CALCULATE_SHADOWS)
-//	shadowCoord = TransformWorldToShadowCoord(positionWS);
-//#else
-//	shadowCoord = float4(0, 0, 0, 0);
-//#endif
-//	Light mainLight = GetMainLight(shadowCoord);
-
-//#else
-//	Light mainLight = GetMainLight();
-//#endif
-
-	// TODO: Receiving shadows. Need to reconstruct world position using depth
-	Light mainLight = GetMainLight();
+    float3 positionWS = input.positionWSAndFogFactor.xyz;
+    positionWS = ReconstructWorldSpacePosition(positionWS, input.normalWS, 1 - normalTex.w);
+    half3 viewDirectionWS = SafeNormalize(GetCameraPositionWS() - positionWS);
+    
+#ifdef _MAIN_LIGHT_SHADOWS
+	float4 shadowCoord;
+	shadowCoord = TransformWorldToShadowCoord(positionWS);
+	Light mainLight = GetMainLight(shadowCoord);
+#else
+    Light mainLight = GetMainLight();
+#endif
 
 	// Surface data contains albedo, metallic, specular, smoothness, occlusion, emission and alpha
 	// InitializeStandarLitSurfaceData initializes based on the rules for standard shader.
