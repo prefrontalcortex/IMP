@@ -1,33 +1,35 @@
 #ifndef XRA_IMPOSTERCOMMON_CGINC
+// Upgrade NOTE: excluded shader from OpenGL ES 2.0 because it uses non-square matrices
+#pragma exclude_renderers gles
 #define XRA_IMPOSTERCOMMON_CGINC
 
 sampler2D _ImposterBaseTex;
 float4 _ImposterBaseTex_TexelSize;
 sampler2D _ImposterWorldNormalDepthTex;
 
-half _ImposterFrames;
-half _ImposterSize;
-half3 _ImposterOffset;
-half _ImposterFullSphere;
-half _ImposterBorderClamp;
+float _ImposterFrames;
+float _ImposterSize;
+float3 _ImposterOffset;
+float _ImposterFullSphere;
+float _ImposterBorderClamp;
 
 struct ImposterData
 {
-    half2 uv;
-    half2 grid;
-    half4 frame0;
-    half4 frame1;
-    half4 frame2;
-    half4 vertex;
+    float2 uv;
+    float2 grid;
+    float4 frame0;
+    float4 frame1;
+    float4 frame2;
+    float4 vertex;
 };
 
 struct Ray
 {
-    half3 Origin;
-    half3 Direction;
+    float3 Origin;
+    float3 Direction;
 };
 
-half3 NormalizePerPixelNormal (half3 n)
+float3 NormalizePerPixelNormal (float3 n)
 {
     #if (SHADER_TARGET < 30) || UNITY_STANDARD_SIMPLE
         return n;
@@ -36,12 +38,12 @@ half3 NormalizePerPixelNormal (half3 n)
     #endif
 }
 
-half3 PerPixelWorldNormal(float4 i_tex, half4 tangentToWorld[3])
+float3 PerPixelWorldNormal(float4 i_tex, float4 tangentToWorld[3])
 {
 #ifdef _NORMALMAP
-    half3 tangent = tangentToWorld[0].xyz;
-    half3 binormal = tangentToWorld[1].xyz;
-    half3 normal = tangentToWorld[2].xyz;
+    float3 tangent = tangentToWorld[0].xyz;
+    float3 binormal = tangentToWorld[1].xyz;
+    float3 normal = tangentToWorld[2].xyz;
 
     #if UNITY_TANGENT_ORTHONORMALIZE
         normal = NormalizePerPixelNormal(normal);
@@ -50,41 +52,38 @@ half3 PerPixelWorldNormal(float4 i_tex, half4 tangentToWorld[3])
         tangent = normalize (tangent - normal * dot(tangent, normal));
 
         // recalculate Binormal
-        half3 newB = cross(normal, tangent);
+        float3 newB = cross(normal, tangent);
         binormal = newB * sign (dot (newB, binormal));
     #endif
 
-    half3 normalTangent = NormalInTangentSpace(i_tex);
-    half3 normalWorld = NormalizePerPixelNormal(tangent * normalTangent.x + binormal * normalTangent.y + normal * normalTangent.z); // @TODO: see if we can squeeze this normalize on SM2.0 as well
+    float3 normalTangent = NormalInTangentSpace(i_tex);
+    float3 normalWorld = NormalizePerPixelNormal(tangent * normalTangent.x + binormal * normalTangent.y + normal * normalTangent.z); // @TODO: see if we can squeeze this normalize on SM2.0 as well
 #else
-    half3 normalWorld = normalize(tangentToWorld[2].xyz);
+    float3 normalWorld = normalize(tangentToWorld[2].xyz);
 #endif
     return normalWorld;
 }
 
-half4 BakeNormalsDepth( sampler2D bumpMap, half2 uv, half depth, half4 tangentToWorld[3] )
+float4 BakeNormalsDepth( sampler2D bumpMap, float2 uv, float depth, float4 tangentToWorld[3] )
 {
-    half4 tex = tex2D( bumpMap, uv );
+    float4 tex = tex2D( bumpMap, uv );
     
-    half3 worldNormal = PerPixelWorldNormal(tex, tangentToWorld);
+    float3 worldNormal = PerPixelWorldNormal(tex, tangentToWorld);
     
-    return half4( worldNormal.xyz*0.5+0.5, 1-depth );
+    return float4( worldNormal.xyz*0.5+0.5, 1-depth );
 }
 
-half4 ImposterBlendWeights( sampler2D tex, half2 uv, half2 frame0, half2 frame1, half2 frame2, half4 weights, half2 ddxy )
+float4 ImposterBlendWeights( sampler2D tex, float2 uv, float2 frame0, float2 frame1, float2 frame2, float4 weights, float2 ddxy )
 {    
-    //half4 samp0 = tex2Dgrad( tex, frame0, ddxy.x, ddxy.y );
-    //half4 samp1 = tex2Dgrad( tex, frame1, ddxy.x, ddxy.y );
-    //half4 samp2 = tex2Dgrad( tex, frame2, ddxy.x, ddxy.y );
-    half4 samp0 = tex2Dlod(tex, float4(frame0,ddxy.x, ddxy.y));
-    half4 samp1 = tex2Dlod(tex, float4(frame1,ddxy.x, ddxy.y));
-    half4 samp2 = tex2Dlod(tex, float4(frame2,ddxy.x, ddxy.y));
+    float4 samp0 = tex2Dgrad( tex, frame0, ddxy.x, ddxy.y );
+    float4 samp1 = tex2Dgrad( tex, frame1, ddxy.x, ddxy.y );
+    float4 samp2 = tex2Dgrad( tex, frame2, ddxy.x, ddxy.y );
 
     //half4 samp0 = tex2Dlod( tex, float4(frame0,0,0) );
     //half4 samp1 = tex2Dlod( tex, float4(frame1,0,0) );
     //half4 samp2 = tex2Dlod( tex, float4(frame2,0,0) );
 
-    half4 result = samp0*weights.x + samp1*weights.y + samp2*weights.z;
+    float4 result = samp0*weights.x + samp1*weights.y + samp2*weights.z;
     
     return result;
 }
@@ -101,27 +100,27 @@ float SphereMask( float2 p1, float2 p2, float r, float h )
 }
 
 //for hemisphere
-half3 OctaHemiEnc( half2 coord )
+float3 OctaHemiEnc( float2 coord )
 {
- 	coord = half2( coord.x + coord.y, coord.x - coord.y ) * 0.5;
- 	half3 vec = half3( coord.x, 1.0 - dot( half2(1.0,1.0), abs(coord.xy) ), coord.y  );
+ 	coord = float2( coord.x + coord.y, coord.x - coord.y ) * 0.5;
+ 	float3 vec = float3( coord.x, 1.0 - dot( float2(1.0,1.0), abs(coord.xy) ), coord.y  );
  	return vec;
 }
 //for sphere
-half3 OctaSphereEnc( half2 coord )
+float3 OctaSphereEnc( float2 coord )
 {
-    half3 vec = half3( coord.x, 1-dot(1,abs(coord)), coord.y );
+    float3 vec = float3( coord.x, 1-dot(1,abs(coord)), coord.y );
     if ( vec.y < 0 )
     {
-        half2 flip = vec.xz >= 0 ? half2(1,1) : half2(-1,-1);
+        float2 flip = vec.xz >= 0 ? float2(1,1) : float2(-1,-1);
         vec.xz = (1-abs(vec.zx)) * flip;
     }
     return vec;
 }
 
-half3 GridToVector( half2 coord )
+float3 GridToVector( float2 coord )
 {
-    half3 vec;
+    float3 vec;
     if ( _ImposterFullSphere )
     {
         vec = OctaSphereEnc(coord);
@@ -134,26 +133,26 @@ half3 GridToVector( half2 coord )
 }
 
 //for hemisphere
-half2 VecToHemiOct( half3 vec )
+float2 VecToHemiOct( float3 vec )
 {
 	vec.xz /= dot( 1.0, abs(vec) );
-	return half2( vec.x + vec.z, vec.x - vec.z );
+	return float2( vec.x + vec.z, vec.x - vec.z );
 }
 
-half2 VecToSphereOct( half3 vec )
+float2 VecToSphereOct( float3 vec )
 {
     vec.xz /= dot( 1,  abs(vec) );
     if ( vec.y <= 0 )
     {
-        half2 flip = vec.xz >= 0 ? half2(1,1) : half2(-1,-1);
+        float2 flip = vec.xz >= 0 ? float2(1,1) : float2(-1,-1);
         vec.xz = (1-abs(vec.zx)) * flip;
     }
     return vec.xz;
 }
 	
-half2 VectorToGrid( half3 vec )
+float2 VectorToGrid( float3 vec )
 {
-    half2 coord;
+    float2 coord;
 
     if ( _ImposterFullSphere )
     {
@@ -168,17 +167,17 @@ half2 VectorToGrid( half3 vec )
     return coord;
 }
 
-half4 TriangleInterpolate( half2 uv )
+float4 TriangleInterpolate( float2 uv )
 {
     uv = frac(uv);
 
-    half2 omuv = half2(1.0,1.0) - uv.xy;
+    float2 omuv = float2(1.0,1.0) - uv.xy;
     
-    half4 res = half4(0,0,0,0);
+    float4 res = float4(0,0,0,0);
     //frame 0
     res.x = min(omuv.x,omuv.y); 
     //frame 1
-    res.y = abs( dot( uv, half2(1.0,-1.0) ) );
+    res.y = abs( dot( uv, float2(1.0,-1.0) ) );
     //frame 2
     res.z = min(uv.x,uv.y); 
     //mask
@@ -188,89 +187,89 @@ half4 TriangleInterpolate( half2 uv )
 }
 
 //frame and framecout, returns 
-half3 FrameXYToRay( half2 frame, half2 frameCountMinusOne )
+float3 FrameXYToRay( float2 frame, float2 frameCountMinusOne )
 {
     //divide frame x y by framecount minus one to get 0-1
-    half2 f = frame.xy / frameCountMinusOne;
+    float2 f = frame.xy / frameCountMinusOne;
     //bias and scale to -1 to 1
     f = (f-0.5)*2.0; 
     //convert to vector, either full sphere or hemi sphere
-    half3 vec = GridToVector( f );
+    float3 vec = GridToVector( f );
     vec = normalize(vec);
     return vec;
 }
 
-half3 ITBasis( half3 vec, half3 basedX, half3 basedY, half3 basedZ )
+float3 ITBasis( float3 vec, float3 basedX, float3 basedY, float3 basedZ )
 {
-    return half3( dot(basedX,vec), dot(basedY,vec), dot(basedZ,vec) );
+    return float3( dot(basedX,vec), dot(basedY,vec), dot(basedZ,vec) );
 }
  
-half3 FrameTransform( half3 projRay, half3 frameRay, out half3 worldX, out half3 worldZ  )
+float3 FrameTransform( float3 projRay, float3 frameRay, out float3 worldX, out float3 worldZ  )
 {
     //TODO something might be wrong here
-    worldX = normalize( half3(-frameRay.z, 0, frameRay.x) );
+    worldX = normalize( float3(-frameRay.z, 0, frameRay.x) );
     worldZ = normalize( cross(worldX, frameRay ) ); 
     
     projRay *= -1.0; 
     
-    half3 local = normalize( ITBasis( projRay, worldX, frameRay, worldZ ) );
+    float3 local = normalize( ITBasis( projRay, worldX, frameRay, worldZ ) );
     return local;
 }
 
-half2 VirtualPlaneUV( half3 planeNormal, half3 planeX, half3 planeZ, half3 center, half2 uvScale, Ray rayLocal )
+float2 VirtualPlaneUV( float3 planeNormal, float3 planeX, float3 planeZ, float3 center, float2 uvScale, Ray rayLocal )
 {
-    half normalDotOrigin = dot(planeNormal,rayLocal.Origin);
-    half normalDotCenter = dot(planeNormal,center);
-    half normalDotRay = dot(planeNormal,rayLocal.Direction);
+    float normalDotOrigin = dot(planeNormal,rayLocal.Origin);
+    float normalDotCenter = dot(planeNormal,center);
+    float normalDotRay = dot(planeNormal,rayLocal.Direction);
     
-    half planeDistance = normalDotOrigin-normalDotCenter;
+    float planeDistance = normalDotOrigin-normalDotCenter;
     planeDistance *= -1.0;
     
-    half intersect = planeDistance / normalDotRay;
+    float intersect = planeDistance / normalDotRay;
     
-    half3 intersection = ((rayLocal.Direction * intersect) + rayLocal.Origin) - center;
+    float3 intersection = ((rayLocal.Direction * intersect) + rayLocal.Origin) - center;
     
-    half dx = dot(planeX,intersection);
-    half dz = dot(planeZ,intersection);
+    float dx = dot(planeX,intersection);
+    float dz = dot(planeZ,intersection);
     
-    half2 uv = half2(0,0);
+    float2 uv = float2(0,0);
     
     if ( intersect > 0 )
     {
-        uv = half2(dx,dz);
+        uv = float2(dx,dz);
     }
     else
     {
-        uv = half2(0,0);
+        uv = float2(0,0);
     }
     
     uv /= uvScale;
-    uv += half2(0.5,0.5);
+    uv += float2(0.5,0.5);
     return uv;
 }
 
 
-half3 SpriteProjection( half3 pivotToCameraRayLocal, half frames, half2 size, half2 coord )
+float3 SpriteProjection( float3 pivotToCameraRayLocal, float frames, float2 size, float2 coord )
 {
-    half3 gridVec = pivotToCameraRayLocal;
+    float3 gridVec = pivotToCameraRayLocal;
     
     //octahedron vector, pivot to camera
-    half3 y = normalize(gridVec);
+    float3 y = normalize(gridVec);
     
-    half3 x = normalize( cross( y, half3(0.0, 1.0, 0.0) ) );
-    half3 z = normalize( cross( x, y ) );
+    float3 x = normalize( cross( y, float3(0.0, 1.0, 0.0) ) );
+    float3 z = normalize( cross( x, y ) );
 
-    half2 uv = ((coord*frames)-0.5) * 2.0; //-1 to 1 
+    float2 uv = ((coord*frames)-0.5) * 2.0; //-1 to 1 
 
-    half3 newX = x * uv.x;
-    half3 newZ = z * uv.y;
+    float3 newX = x * uv.x;
+    float3 newZ = z * uv.y;
     
-    half2 halfSize = size*0.5;
+    float2 floatSize = size*0.5;
     
-    newX *= halfSize.x;
-    newZ *= halfSize.y;
+    newX *= floatSize.x;
+    newZ *= floatSize.y;
     
-    half3 res = newX + newZ;  
+    float3 res = newX + newZ;  
      
     return res;
 }
@@ -290,7 +289,7 @@ float4 Mul(float4x4 M, float4 v)
 void ImposterVertex( inout ImposterData imp )
 {
     //incoming vertex, object space
-    half4 vertex = imp.vertex;
+    float4 vertex = imp.vertex;
     
     //camera in object space
     #ifdef SHADER_API_METAL
@@ -298,12 +297,12 @@ void ImposterVertex( inout ImposterData imp )
     #else
     float3 objectSpaceCameraPos = mul( unity_WorldToObject, float4(_WorldSpaceCameraPos.xyz,1) ).xyz;
     #endif
-    half2 texcoord = imp.uv;
+    float2 texcoord = imp.uv;
     float4x4 objectToWorld = unity_ObjectToWorld;
     float4x4 worldToObject = unity_WorldToObject;
 
-    half3 imposterPivotOffset = _ImposterOffset.xyz;
-    half framesMinusOne = _ImposterFrames-1;
+    float3 imposterPivotOffset = _ImposterOffset.xyz;
+    float framesMinusOne = _ImposterFrames-1;
     
     float3 objectScale = float3(length(float3(objectToWorld[0].x, objectToWorld[1].x, objectToWorld[2].x)),
                                 length(float3(objectToWorld[0].y, objectToWorld[1].y, objectToWorld[2].y)),
@@ -313,15 +312,15 @@ void ImposterVertex( inout ImposterData imp )
     float3 pivotToCameraRay = normalize(objectSpaceCameraPos.xyz-imposterPivotOffset.xyz);
 
     //scale uv to single frame
-    texcoord = half2(texcoord.x,texcoord.y)*(1.0/_ImposterFrames.x);  
+    texcoord = float2(texcoord.x,texcoord.y)*(1.0/_ImposterFrames.x);  
     
     //radius * 2 * unity scaling
-    half2 size = _ImposterSize.xx * 2.0; // * objectScale.xx; //unity_BillboardSize.xy                 
+    float2 size = _ImposterSize.xx * 2.0; // * objectScale.xx; //unity_BillboardSize.xy                 
     
-    half3 projected = SpriteProjection( pivotToCameraRay, _ImposterFrames, size, texcoord.xy );
+    float3 projected = SpriteProjection( pivotToCameraRay, _ImposterFrames, size, texcoord.xy );
 
     //this creates the proper offset for vertices to camera facing billboard
-    half3 vertexOffset = projected + imposterPivotOffset;
+    float3 vertexOffset = projected + imposterPivotOffset;
     //subtract from camera pos 
     vertexOffset = normalize(objectSpaceCameraPos-vertexOffset);
     //then add the original projected world
@@ -332,74 +331,74 @@ void ImposterVertex( inout ImposterData imp )
     vertexOffset += imposterPivotOffset;
 
     //camera to projection vector
-    half3 rayDirectionLocal = (imposterPivotOffset + projected) - objectSpaceCameraPos;
+    float3 rayDirectionLocal = (imposterPivotOffset + projected) - objectSpaceCameraPos;
                  
     //projected position to camera ray
-    half3 projInterpolated = normalize( objectSpaceCameraPos - (projected + imposterPivotOffset) ); 
+    float3 projInterpolated = normalize( objectSpaceCameraPos - (projected + imposterPivotOffset) ); 
     
     Ray rayLocal;
     rayLocal.Origin = objectSpaceCameraPos-imposterPivotOffset; 
     rayLocal.Direction = rayDirectionLocal; 
     
-    half2 grid = VectorToGrid( pivotToCameraRay );
-    half2 gridRaw = grid;
+    float2 grid = VectorToGrid( pivotToCameraRay );
+    float2 gridRaw = grid;
     grid = saturate((grid+1.0)*0.5); //bias and scale to 0 to 1 
     grid *= framesMinusOne;
     
     #ifdef SHADER_API_METAL
-    half2 gridFrac = grid - floor(grid);
+    float2 gridFrac = grid - floor(grid);
     #else
-    half2 gridFrac = frac(grid);
+    float2 gridFrac = frac(grid);
     #endif
     
-    half2 gridFloor = floor(grid);
+    float2 gridFloor = floor(grid);
     
-    half4 weights = TriangleInterpolate( gridFrac ); 
+    float4 weights = TriangleInterpolate( gridFrac ); 
     
     //3 nearest frames
-    half2 frame0 = gridFloor;
+    float2 frame0 = gridFloor;
     #ifdef SHADER_API_METAL
-    half2 frame1 = gridFloor + half2(0,1) + weights.w * (half2(1,0) - half2(0,1));
+    float2 frame1 = gridFloor + float2(0,1) + weights.w * (float2(1,0) - float2(0,1));
     #else
-    half2 frame1 = gridFloor + lerp(half2(0,1),half2(1,0),weights.w);
+    float2 frame1 = gridFloor + lerp(float2(0,1),float2(1,0),weights.w);
     #endif
-    half2 frame2 = gridFloor + half2(1,1);
+    float2 frame2 = gridFloor + float2(1,1);
     
     //convert frame coordinate to octahedron direction
-    half3 frame0ray = FrameXYToRay(frame0, framesMinusOne.xx);
-    half3 frame1ray = FrameXYToRay(frame1, framesMinusOne.xx);
-    half3 frame2ray = FrameXYToRay(frame2, framesMinusOne.xx);
+    float3 frame0ray = FrameXYToRay(frame0, framesMinusOne.xx);
+    float3 frame1ray = FrameXYToRay(frame1, framesMinusOne.xx);
+    float3 frame2ray = FrameXYToRay(frame2, framesMinusOne.xx);
     
-    half3 planeCenter = half3(0,0,0);
+    float3 planeCenter = float3(0,0,0);
     
-    half3 plane0x;
-    half3 plane0normal = frame0ray;
-    half3 plane0z;
-    half3 frame0local = FrameTransform( projInterpolated, frame0ray, plane0x, plane0z );
+    float3 plane0x;
+    float3 plane0normal = frame0ray;
+    float3 plane0z;
+    float3 frame0local = FrameTransform( projInterpolated, frame0ray, plane0x, plane0z );
     frame0local.xz = frame0local.xz/_ImposterFrames.xx; //for displacement
     
     //virtual plane UV coordinates
-    half2 vUv0 = VirtualPlaneUV( plane0normal, plane0x, plane0z, planeCenter, size, rayLocal );
+    float2 vUv0 = VirtualPlaneUV( plane0normal, plane0x, plane0z, planeCenter, size, rayLocal );
     vUv0 /= _ImposterFrames.xx;   
     
-    half3 plane1x; 
-    half3 plane1normal = frame1ray;
-    half3 plane1z;
-    half3 frame1local = FrameTransform( projInterpolated, frame1ray, plane1x, plane1z);
+    float3 plane1x; 
+    float3 plane1normal = frame1ray;
+    float3 plane1z;
+    float3 frame1local = FrameTransform( projInterpolated, frame1ray, plane1x, plane1z);
     frame1local.xz = frame1local.xz/_ImposterFrames.xx; //for displacement
     
     //virtual plane UV coordinates
-    half2 vUv1 = VirtualPlaneUV( plane1normal, plane1x, plane1z, planeCenter, size, rayLocal );
+    float2 vUv1 = VirtualPlaneUV( plane1normal, plane1x, plane1z, planeCenter, size, rayLocal );
     vUv1 /= _ImposterFrames.xx;
     
-    half3 plane2x;
-    half3 plane2normal = frame2ray;
-    half3 plane2z;
-    half3 frame2local = FrameTransform( projInterpolated, frame2ray, plane2x, plane2z );
+    float3 plane2x;
+    float3 plane2normal = frame2ray;
+    float3 plane2z;
+    float3 frame2local = FrameTransform( projInterpolated, frame2ray, plane2x, plane2z );
     frame2local.xz = frame2local.xz/_ImposterFrames.xx; //for displacement
     
     //virtual plane UV coordinates
-    half2 vUv2 = VirtualPlaneUV( plane2normal, plane2x, plane2z, planeCenter, size, rayLocal );
+    float2 vUv2 = VirtualPlaneUV( plane2normal, plane2x, plane2z, planeCenter, size, rayLocal );
     vUv2 /= _ImposterFrames.xx;
     
     //add offset here
@@ -407,26 +406,26 @@ void ImposterVertex( inout ImposterData imp )
     //overwrite others
     imp.uv = texcoord;
     imp.grid = grid;
-    imp.frame0 = half4(vUv0.xy,frame0local.xz);
-    imp.frame1 = half4(vUv1.xy,frame1local.xz);
-    imp.frame2 = half4(vUv2.xy,frame2local.xz);
+    imp.frame0 = float4(vUv0.xy,frame0local.xz);
+    imp.frame1 = float4(vUv1.xy,frame1local.xz);
+    imp.frame2 = float4(vUv2.xy,frame2local.xz);
 }
 
-void ImposterSample( in ImposterData imp, out half4 baseTex, out half4 worldNormal )//, out half depth )
+void ImposterSample( in ImposterData imp, out float4 baseTex, out float4 worldNormal )//, out float depth )
 {
-    half2 fracGrid = frac(imp.grid);
+    float2 fracGrid = frac(imp.grid);
     
-    half4 weights = TriangleInterpolate( fracGrid );
+    float4 weights = TriangleInterpolate( fracGrid );
       
-    half2 gridSnap = floor(imp.grid) / _ImposterFrames.xx;
+    float2 gridSnap = floor(imp.grid) / _ImposterFrames.xx;
         
-    half2 frame0 = gridSnap;
-    half2 frame1 = gridSnap + (lerp(half2(0,1),half2(1,0),weights.w)/_ImposterFrames.xx);
-    half2 frame2 = gridSnap + (half2(1,1)/_ImposterFrames.xx);
+    float2 frame0 = gridSnap;
+    float2 frame1 = gridSnap + (lerp(float2(0,1),float2(1,0),weights.w)/_ImposterFrames.xx);
+    float2 frame2 = gridSnap + (float2(1,1)/_ImposterFrames.xx);
     
-    half2 vp0uv = frame0 + imp.frame0.xy;
-    half2 vp1uv = frame1 + imp.frame1.xy; 
-    half2 vp2uv = frame2 + imp.frame2.xy;
+    float2 vp0uv = frame0 + imp.frame0.xy;
+    float2 vp1uv = frame1 + imp.frame1.xy; 
+    float2 vp2uv = frame2 + imp.frame2.xy;
    
     //resolution of atlas (Square)
     float textureDims = _ImposterBaseTex_TexelSize.z;
@@ -442,7 +441,7 @@ void ImposterSample( in ImposterData imp, out half4 baseTex, out half4 worldNorm
     vp2uv *= scaleFactor;
    
     //clamp out neighboring frames TODO maybe discard instead?
-    half2 gridSize = 1.0/_ImposterFrames.xx;
+    float2 gridSize = 1.0/_ImposterFrames.xx;
     gridSize *= _ImposterBaseTex_TexelSize.zw;
     gridSize *= _ImposterBaseTex_TexelSize.xy;
     float2 border = _ImposterBaseTex_TexelSize.xy*_ImposterBorderClamp;
@@ -452,17 +451,17 @@ void ImposterSample( in ImposterData imp, out half4 baseTex, out half4 worldNorm
     //vp2uv = clamp(vp2uv,frame2+border,frame2+gridSize-border);
    
     //for parallax modify
-    half4 n0 = tex2Dlod( _ImposterWorldNormalDepthTex, half4(vp0uv, 0, 1 ) );
-    half4 n1 = tex2Dlod( _ImposterWorldNormalDepthTex, half4(vp1uv, 0, 1 ) );
-    half4 n2 = tex2Dlod( _ImposterWorldNormalDepthTex, half4(vp2uv, 0, 1 ) );
+    float4 n0 = tex2Dlod( _ImposterWorldNormalDepthTex, float4(vp0uv, 0, 1 ) );
+    float4 n1 = tex2Dlod( _ImposterWorldNormalDepthTex, float4(vp1uv, 0, 1 ) );
+    float4 n2 = tex2Dlod( _ImposterWorldNormalDepthTex, float4(vp2uv, 0, 1 ) );
         
-    half n0s = 0.5-n0.a;    
-    half n1s = 0.5-n1.a;
-    half n2s = 0.5-n2.a;
+    float n0s = 0.5-n0.a;    
+    float n1s = 0.5-n1.a;
+    float n2s = 0.5-n2.a;
     
-    half2 n0p = imp.frame0.zw * n0s;
-    half2 n1p = imp.frame1.zw * n1s;
-    half2 n2p = imp.frame2.zw * n2s;
+    float2 n0p = imp.frame0.zw * n0s;
+    float2 n1p = imp.frame1.zw * n1s;
+    float2 n2p = imp.frame2.zw * n2s;
     
     //add parallax shift 
     vp0uv += n0p;
@@ -474,18 +473,18 @@ void ImposterSample( in ImposterData imp, out half4 baseTex, out half4 worldNorm
     vp1uv = clamp(vp1uv,frame1+border,frame1+gridSize-border);
     vp2uv = clamp(vp2uv,frame2+border,frame2+gridSize-border);
     
-    half2 ddxy = half2( ddx(imp.uv.x), ddy(imp.uv.y) );
+    float2 ddxy = float2( ddx(imp.uv.x), ddy(imp.uv.y) );
     
     worldNormal = ImposterBlendWeights( _ImposterWorldNormalDepthTex, imp.uv, vp0uv, vp1uv, vp2uv, weights, ddxy );
     baseTex = ImposterBlendWeights( _ImposterBaseTex, imp.uv, vp0uv, vp1uv, vp2uv, weights, ddxy );
         
     //pixel depth offset
-    //half pdo = 1-baseTex.a;
+    //float pdo = 1-baseTex.a;
     //float3 objectScale = float3(length(float3(unity_ObjectToWorld[0].x, unity_ObjectToWorld[1].x, unity_ObjectToWorld[2].x)),
     //                        length(float3(unity_ObjectToWorld[0].y, unity_ObjectToWorld[1].y, unity_ObjectToWorld[2].y)),
     //                        length(float3(unity_ObjectToWorld[0].z, unity_ObjectToWorld[1].z, unity_ObjectToWorld[2].z)));
-    //half2 size = _ImposterSize.xx * 2.0;// * objectScale.xx;  
-    //half3 viewWorld = mul( UNITY_MATRIX_VP, float4(0,0,1,0) ).xyz;
+    //float2 size = _ImposterSize.xx * 2.0;// * objectScale.xx;  
+    //float3 viewWorld = mul( UNITY_MATRIX_VP, float4(0,0,1,0) ).xyz;
     //pdo *= size * abs(dot(normalize(imp.viewDirWorld.xyz),viewWorld));
     //depth = pdo;
 }

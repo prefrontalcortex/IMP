@@ -111,8 +111,8 @@
                 imp.frame2 = IN.plane2;
                 
                 //perform texture sampling
-                half4 baseTex;
-                half4 normalTex;
+                float4 baseTex;
+                float4 normalTex;
                 
                 ImposterSample(imp, baseTex, normalTex );
                 
