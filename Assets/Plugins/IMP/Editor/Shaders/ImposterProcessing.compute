@@ -54,7 +54,7 @@ void CSDilate(uint3 id : SV_DispatchThreadID)
                 {
                     float4 neighborCol = Source.Load( xyz );
                     color.rgb = neighborCol.rgb;
-                    if ( AllChannels )
+                    if (AllChannels == true)
                     {
                         color.a = neighborCol.a;
                     }
@@ -62,14 +62,14 @@ void CSDilate(uint3 id : SV_DispatchThreadID)
                     break;
                 }
             }
-            if ( exit ) break;
+            if (exit == true) break;
         }
     }
 
     //clear out 1 pixel border to help reduce neighbor frame stretching due to clamp
     if ( x == 0 || x == sourceWidth-1 || y == 0 || y == sourceHeight-1 )
     {    
-        if ( NormalsDepth )
+        if (NormalsDepth == true)
         {
             color = float4(0,0,0,0.5);
         }

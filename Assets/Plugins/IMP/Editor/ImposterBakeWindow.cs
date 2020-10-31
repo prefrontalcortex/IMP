@@ -495,9 +495,12 @@ public class ImposterBakeWindow : EditorWindow
         
         //recalculate snapshots
         snapshots = UpdateSnapshots(imposter.Frames, imposter.Radius, root.position + imposter.Offset, imposter.IsHalf);
-        
+
         ///////////////////// rendering the actual frames 
-        
+        int kernelCSDilate = processCompute.FindKernel("CSDilate");
+        int kernelCSDistanceAlpha = processCompute.FindKernel("CSDistanceAlpha");
+        int kernelCSDistanceAlphaGetMax = processCompute.FindKernel("CSDistanceAlphaGetMax");
+        int kernelCSDistanceAlphaFinalize = processCompute.FindKernel("CSDistanceAlphaFinalize");
         for (var frameIndex = 0; frameIndex < frameCount; frameIndex++)
         {
             if (frameIndex > snapshots.Length - 1)
@@ -584,12 +587,12 @@ public class ImposterBakeWindow : EditorWindow
             //padding / dilate TODO can be improved?
             int threadsX, threadsY, threadsZ;
             CalcWorkSize( packFrame.width*packFrame.height, out threadsX, out threadsY, out threadsZ );
-            processCompute.SetTexture(0,"Source",packFrame);
-            processCompute.SetTexture(0,"SourceMask",frame);
-            processCompute.SetTexture(0,"Result",tempFrame);
+            processCompute.SetTexture(kernelCSDilate,"Source",packFrame);
+            processCompute.SetTexture(kernelCSDilate,"SourceMask",frame);
+            processCompute.SetTexture(kernelCSDilate, "Result",tempFrame);
             processCompute.SetBool("AllChannels",true);
             processCompute.SetBool("NormalsDepth",true);
-            processCompute.Dispatch(0,threadsX,threadsY,threadsZ);
+            processCompute.Dispatch(kernelCSDilate, threadsX,threadsY,threadsZ);
             
             Graphics.Blit(tempFrame,packFrame);
 
@@ -599,12 +602,12 @@ public class ImposterBakeWindow : EditorWindow
     
             //padding / dilate
             CalcWorkSize( frame.width*frame.height, out threadsX, out threadsY, out threadsZ );
-            processCompute.SetTexture(0,"Source",frame);
-            processCompute.SetTexture(0,"SourceMask",frame);
-            processCompute.SetTexture(0,"Result",tempFrame);
+            processCompute.SetTexture(kernelCSDilate,"Source",frame);
+            processCompute.SetTexture(kernelCSDilate,"SourceMask",frame);
+            processCompute.SetTexture(kernelCSDilate, "Result",tempFrame);
             processCompute.SetBool("AllChannels",false);
             processCompute.SetBool("NormalsDepth",false);
-            processCompute.Dispatch(0,threadsX,threadsY,threadsZ);
+            processCompute.Dispatch(kernelCSDilate, threadsX,threadsY,threadsZ);
             
             Graphics.Blit(tempFrame,frame);
             
@@ -614,26 +617,26 @@ public class ImposterBakeWindow : EditorWindow
             //distance field alpha
             //step 1 store min distance to unfilled alpha
             CalcWorkSize( frame.width*frame.height, out threadsX, out threadsY, out threadsZ );
-            processCompute.SetTexture(1,"Source",frame);
-            processCompute.SetTexture(1,"SourceMask",frame);
-            processCompute.SetBuffer(1,"MinDistances",minDistancesBuffer);
-            processCompute.Dispatch(1,threadsX,threadsY,threadsZ);
+            processCompute.SetTexture(kernelCSDistanceAlpha, "Source",frame);
+            processCompute.SetTexture(kernelCSDistanceAlpha, "SourceMask",frame);
+            processCompute.SetBuffer(kernelCSDistanceAlpha, "MinDistances",minDistancesBuffer);
+            processCompute.Dispatch(kernelCSDistanceAlpha, threadsX,threadsY,threadsZ);
             
             //step 2 write maximum of the min distances to MaxDistanceBuffer[0]
             //also reset the min distances to 0 during this kernel
             processCompute.SetInt("MinDistancesLength",minDistancesBuffer.count);
-            processCompute.SetBuffer(2,"MaxOfMinDistances",maxDistanceBuffer);
-            processCompute.SetBuffer(2,"MinDistances",minDistancesBuffer);
-            processCompute.Dispatch(2,1,1,1);
+            processCompute.SetBuffer(kernelCSDistanceAlphaGetMax,"MaxOfMinDistances",maxDistanceBuffer);
+            processCompute.SetBuffer(kernelCSDistanceAlphaGetMax, "MinDistances",minDistancesBuffer);
+            processCompute.Dispatch(kernelCSDistanceAlphaGetMax, 1,1,1);
             
             //step 3 write min distance / max of min to temp frame
             CalcWorkSize( frame.width*frame.height, out threadsX, out threadsY, out threadsZ );
-            processCompute.SetTexture(3,"Source",frame);
-            processCompute.SetTexture(3,"SourceMask",frame);
-            processCompute.SetTexture(3,"Result",tempFrame);
-            processCompute.SetBuffer(3,"MinDistances",minDistancesBuffer);
-            processCompute.SetBuffer(3,"MaxOfMinDistances",maxDistanceBuffer);
-            processCompute.Dispatch(3,threadsX,threadsY,threadsZ);
+            processCompute.SetTexture(kernelCSDistanceAlphaFinalize,"Source",frame);
+            processCompute.SetTexture(kernelCSDistanceAlphaFinalize,"SourceMask",frame);
+            processCompute.SetTexture(kernelCSDistanceAlphaFinalize, "Result",tempFrame);
+            processCompute.SetBuffer(kernelCSDistanceAlphaFinalize,"MinDistances",minDistancesBuffer);
+            processCompute.SetBuffer(kernelCSDistanceAlphaFinalize, "MaxOfMinDistances",maxDistanceBuffer);
+            processCompute.Dispatch(kernelCSDistanceAlphaFinalize, threadsX,threadsY,threadsZ);
             
             Graphics.Blit(tempFrame,frame);
             

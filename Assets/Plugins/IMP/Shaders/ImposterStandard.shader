@@ -28,9 +28,9 @@
         //AlphaToMask On
         //blend SrcAlpha OneMinusSrcAlpha  
         ZTest LEqual
-        ZWrite on
-        cull back 
-        blend off
+        ZWrite On
+        Cull Back
+        Blend Off
         
 		CGPROGRAM
 		#include "ImposterCommon.cginc"
@@ -75,7 +75,7 @@
             //IMP results  
             //v2f
             v.vertex = imp.vertex;
-            
+
             float3 normalWorld = UnityObjectToWorldDir(v.normal.xyz);
             float3 tangentWorld = UnityObjectToWorldDir(v.tangent.xyz);
             float3x3 tangentToWorld = CreateTangentToWorldPerVertex(normalWorld, tangentWorld, v.tangent.w);
@@ -105,24 +105,24 @@
 		    imp.frame2 = IN.plane2;
 		    
 		    //perform texture sampling
-		    half4 baseTex;
-		    half4 normalTex;
+		    float4 baseTex;
+		    float4 normalTex;
 		    
 		    ImposterSample(imp, baseTex, normalTex );
             baseTex.a = saturate( pow(baseTex.a,_Cutoff) );
             clip(baseTex.a-_Cutoff);
             
             //scale world normal back to -1 to 1
-            half3 worldNormal = normalTex.xyz*2-1;
+            float3 worldNormal = normalTex.xyz*2-1;
             
             //this works but not ideal
             worldNormal = mul( unity_ObjectToWorld, half4(worldNormal,0) ).xyz;
             
-            half depth = normalTex.w; //maybe for pixel depth?
+            float depth = normalTex.w; //maybe for pixel depth?
             
-            half3 t = IN.tangentWorld;
-            half3 b = IN.bitangentWorld;
-            half3 n = IN.normalWorld;
+            float3 t = IN.tangentWorld;
+            float3 b = IN.bitangentWorld;
+            float3 n = IN.normalWorld;
         
             //from UnityStandardCore.cginc 
             #if UNITY_TANGENT_ORTHONORMALIZE
@@ -135,7 +135,7 @@
                 half3 newB = cross(n, t);
                 b = newB * sign (dot (newB, b));
             #endif
-            half3x3 tangentToWorld = half3x3(t, b, n); 
+            float3x3 tangentToWorld = float3x3(t, b, n); 
             
             //o well
             o.Normal = normalize(mul(tangentToWorld, worldNormal));
