@@ -2,26 +2,27 @@
 {
 	Properties
 	{
-		_MainTex ("Texture", 2D) = "white" {}
+		[MainTexture] _BaseMap("Albedo", 2D) = "white" {}
 	}
-	SubShader
+		SubShader
 	{
 		Cull off ZWrite on ZTest LEqual
-        
+
 		Pass
 		{
-			CGPROGRAM
+			HLSLPROGRAM
 			#pragma vertex vert
 			#pragma fragment frag
-			
-			#include "UnityCG.cginc"
 
-			sampler2D _MainTex;
-			float4 _MainTex_ST;
-			float4 _MainTex_TexelSize;
-			
-			float4 _Color;
-			
+			#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+
+			TEXTURE2D(_BaseMap);	SAMPLER(sampler_BaseMap);
+
+			float4 _BaseMap_ST;
+			float4 _BaseMap_TexelSize;
+
+			float4 _BaseColor;
+
 			half _ImposterRenderAlpha; //hacky used to toggle alpha only output only due to relying on replacement shaders
 
 			struct appdata
@@ -37,33 +38,36 @@
 				float4 screenPos : TEXCOORD1;
 			};
 
-			v2f vert (appdata v)
+			v2f vert(appdata v)
 			{
 				v2f o;
-				o.vertex = UnityObjectToClipPos(v.vertex);
-				o.screenPos = ComputeScreenPos( o.vertex );
-				o.uv = TRANSFORM_TEX(v.uv, _MainTex);
+				o.vertex = TransformObjectToHClip(v.vertex);
+				o.screenPos = ComputeScreenPos(o.vertex);
+				o.uv = TRANSFORM_TEX(v.uv, _BaseMap);
 				return o;
 			}
-			
-			float4 frag (v2f i) : SV_Target
+
+			float4 frag(v2f i) : SV_Target
 			{
-			    //half2 spos = i.screenPos.xy / i.screenPos.w;
-			    //spos *= 0.5+0.5;
-			    //half dist = distance(spos.xy,half2(0.5,0.5));
-			    //
-			    //dist = 1-saturate( dist / 0.2);
-			    
-				float4 col = tex2D(_MainTex, i.uv) * _Color;
-				
-				if ( _ImposterRenderAlpha > 0.5 )
+				//half2 spos = i.screenPos.xy / i.screenPos.w;
+				//spos *= 0.5+0.5;
+				//half dist = distance(spos.xy,half2(0.5,0.5));
+				//
+				//dist = 1-saturate( dist / 0.2);
+
+				float4 col = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, i.uv) * _BaseColor;
+
+				// TODO expose clipping somehow
+				clip (col.a - 0.3);
+
+				if (_ImposterRenderAlpha > 0.5)
 				{
-				    return col.aaaa;
+					return col.aaaa;
 				}
-				
+
 				return col;
 			}
-			ENDCG
+			ENDHLSL
 		}
 	}
 }

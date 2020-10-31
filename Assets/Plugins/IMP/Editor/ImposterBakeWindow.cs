@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 
 public class ImposterBakeWindow : EditorWindow
 {
@@ -15,7 +16,7 @@ public class ImposterBakeWindow : EditorWindow
 
     private static int _frames = 12;
     private static bool _isHalf = true;
-    //private static float _pixelCrop = 1f; //0f no extra cropping, 1f full pixel cropping
+    private static float _pixelCrop = 1f; //0f no extra cropping, 1f full pixel cropping
     private static Transform _lightingRig; //root of lighting rig if used
     private static Transform _root;
     private static readonly List<Transform> Roots = new List<Transform>();
@@ -114,8 +115,8 @@ public class ImposterBakeWindow : EditorWindow
         _frames = Mathf.Max(2, _frames);
         
         //pixel crop not needed, extra 2 pixels added to X Y, border of frames cleared to black
-        //_pixelCrop = EditorGUILayout.Slider("PixelCrop", _pixelCrop, 0f, 1f);
-        //_pixelCrop = Mathf.Clamp01(_pixelCrop);
+        _pixelCrop = EditorGUILayout.Slider("PixelCrop", _pixelCrop, 0f, 1f);
+        _pixelCrop = Mathf.Clamp01(_pixelCrop);
 
         _isHalf = EditorGUILayout.Toggle(_labelHemisphere, _isHalf);
 
@@ -215,6 +216,16 @@ public class ImposterBakeWindow : EditorWindow
                 var worldVert = root.localToWorldMatrix.MultiplyPoint3x4(meshLocalToRoot);
                 bounds.Encapsulate(worldVert);
             }
+
+            // CODY
+            MaterialPropertyBlock block = new MaterialPropertyBlock();
+
+            var baseTex = mrs[i].sharedMaterial.GetTexture("_BaseMap");
+            var baseColor = mrs[i].sharedMaterial.GetColor("_BaseColor");
+            if (baseTex) { block.SetTexture("_BaseMap", baseTex); }
+            block.SetColor("_BaseColor", baseColor);
+
+            mrs[i].SetPropertyBlock(block);
         }
         
         //the bounds will fit within the sphere
@@ -274,7 +285,19 @@ public class ImposterBakeWindow : EditorWindow
         return new Vector2(x, y);
     }
 
-    private static bool CaptureViews(Transform root, BillboardImposter imposter, Snapshots[] snapshots,
+    private void RenderWithShader(Camera camera, Shader shader) {
+        var urpCameraData = camera.GetComponent<UniversalAdditionalCameraData>();
+        if (!urpCameraData) {
+            urpCameraData = camera.gameObject.AddComponent<UniversalAdditionalCameraData>();
+        }
+        
+        int shaderIndex = shader == _bakeAlbedoShader ? 1 : 2;
+        urpCameraData.SetRenderer(shaderIndex);
+        camera.Render();
+        urpCameraData.SetRenderer(0);
+    }
+
+    private bool CaptureViews(Transform root, BillboardImposter imposter, Snapshots[] snapshots,
         Transform lightingRoot, Shader albedoBake, Shader normalBake, ComputeShader processCompute )
     {
         Vector3 originalScale = root.localScale;
@@ -424,7 +447,8 @@ public class ImposterBakeWindow : EditorWindow
 
             //render alpha only
             Shader.SetGlobalFloat("_ImposterRenderAlpha",1f);
-            camera.RenderWithShader(albedoBake,""); 
+            //camera.RenderWithShader(albedoBake,""); 
+            RenderWithShader(camera, albedoBake);
             camera.ResetReplacementShader();
 
             //render without clearing (accumulating filled pixels)
@@ -436,10 +460,12 @@ public class ImposterBakeWindow : EditorWindow
             var texPos = new Vector2(viewPos.x, viewPos.y) * frame.width;
             texPos.x = Mathf.Clamp(texPos.x, 0f, frame.width);
             texPos.y = Mathf.Clamp(texPos.y, 0f, frame.width);
-            min.x = Mathf.Min(min.x, texPos.x);
-            min.y = Mathf.Min(min.y, texPos.y);
-            max.x = Mathf.Max(max.x, texPos.x);
-            max.y = Mathf.Max(max.y, texPos.y);
+
+            // CODY
+            //min.x = Mathf.Min(min.x, texPos.x);
+            //min.y = Mathf.Min(min.y, texPos.y);
+            //max.x = Mathf.Max(max.x, texPos.x);
+            //max.y = Mathf.Max(max.y, texPos.y);
         }
 
         camera.clearFlags = CameraClearFlags.SolidColor;
@@ -481,7 +507,7 @@ public class ImposterBakeWindow : EditorWindow
         var ratio = maxR / frame.width; //assume square
 
         //adjust ratio (if clipping is too tight)
-        //ratio = Mathf.Lerp(1f, ratio, _pixelCrop);
+        ratio = Mathf.Lerp(1f, ratio, _pixelCrop); // CODY
 
         imposter.Radius = imposter.Radius * ratio;
         //adjust the camera size and far clip
@@ -525,7 +551,12 @@ public class ImposterBakeWindow : EditorWindow
             if (!customLit)
             {
                 Shader.SetGlobalFloat("_ImposterRenderAlpha",0f);
-                camera.RenderWithShader(albedoBake,""); 
+                //camera.RenderWithShader(albedoBake,""); 
+                RenderWithShader(camera, albedoBake);
+
+                // TODO: Should be doing RenderWithShader, but because URP doesn't support replaced shaders,
+                // I'm using replaced materials instead, whic don't preserve material properties.
+                //camera.Render();
                 camera.ResetReplacementShader();
             }
             else
@@ -566,7 +597,10 @@ public class ImposterBakeWindow : EditorWindow
             clearColor = new Color(0.0f, 0.0f, 0.0f, 0.5f);
             camera.targetTexture = superSizedFrame;
             camera.backgroundColor = clearColor;
-            camera.RenderWithShader(normalBake,""); 
+
+            // CODY ADDED THIS
+            RenderWithShader(camera, normalBake);
+            //camera.RenderWithShader(normalBake,""); 
             camera.ResetReplacementShader();
             
             //clear the pack frame and write TODO proper sampling
@@ -574,69 +608,69 @@ public class ImposterBakeWindow : EditorWindow
             GL.Clear(true,true,clearColor);
             Graphics.Blit(superSizedFrame,packFrame);
 
-            
-            //////////// perform processing on frames
-            
+
+            ////////////// perform processing on frames
+
             //pack frame is done first so alpha of base frame can be used as a mask (before distance alpha process)
             Graphics.SetRenderTarget(tempFrame);
             GL.Clear(true, true, Color.clear);
-    
+
             //padding / dilate TODO can be improved?
             int threadsX, threadsY, threadsZ;
-            CalcWorkSize( packFrame.width*packFrame.height, out threadsX, out threadsY, out threadsZ );
-            processCompute.SetTexture(0,"Source",packFrame);
-            processCompute.SetTexture(0,"SourceMask",frame);
-            processCompute.SetTexture(0,"Result",tempFrame);
-            processCompute.SetBool("AllChannels",true);
-            processCompute.SetBool("NormalsDepth",true);
-            processCompute.Dispatch(0,threadsX,threadsY,threadsZ);
-            
-            Graphics.Blit(tempFrame,packFrame);
+            CalcWorkSize(packFrame.width * packFrame.height, out threadsX, out threadsY, out threadsZ);
+            processCompute.SetTexture(0, "Source", packFrame);
+            processCompute.SetTexture(0, "SourceMask", frame);
+            processCompute.SetTexture(0, "Result", tempFrame);
+            processCompute.SetBool("AllChannels", true);
+            processCompute.SetBool("NormalsDepth", true);
+            processCompute.Dispatch(0, threadsX, threadsY, threadsZ);
+
+            Graphics.Blit(tempFrame, packFrame);
 
             //Perform processing on base atlas, Albedo + alpha (alpha is modified)
             Graphics.SetRenderTarget(tempFrame);
             GL.Clear(true, true, Color.clear);
-    
+
             //padding / dilate
-            CalcWorkSize( frame.width*frame.height, out threadsX, out threadsY, out threadsZ );
-            processCompute.SetTexture(0,"Source",frame);
-            processCompute.SetTexture(0,"SourceMask",frame);
-            processCompute.SetTexture(0,"Result",tempFrame);
-            processCompute.SetBool("AllChannels",false);
-            processCompute.SetBool("NormalsDepth",false);
-            processCompute.Dispatch(0,threadsX,threadsY,threadsZ);
-            
-            Graphics.Blit(tempFrame,frame);
-            
+            CalcWorkSize(frame.width * frame.height, out threadsX, out threadsY, out threadsZ);
+            processCompute.SetTexture(0, "Source", frame);
+            processCompute.SetTexture(0, "SourceMask", frame);
+            processCompute.SetTexture(0, "Result", tempFrame);
+            processCompute.SetBool("AllChannels", false);
+            processCompute.SetBool("NormalsDepth", false);
+            processCompute.Dispatch(0, threadsX, threadsY, threadsZ);
+
+            Graphics.Blit(tempFrame, frame);
+
             Graphics.SetRenderTarget(tempFrame);
             GL.Clear(true, true, Color.clear);
-            
+
             //distance field alpha
             //step 1 store min distance to unfilled alpha
-            CalcWorkSize( frame.width*frame.height, out threadsX, out threadsY, out threadsZ );
-            processCompute.SetTexture(1,"Source",frame);
-            processCompute.SetTexture(1,"SourceMask",frame);
-            processCompute.SetBuffer(1,"MinDistances",minDistancesBuffer);
-            processCompute.Dispatch(1,threadsX,threadsY,threadsZ);
-            
+            CalcWorkSize(frame.width * frame.height, out threadsX, out threadsY, out threadsZ);
+            processCompute.SetTexture(1, "Source", frame);
+            processCompute.SetTexture(1, "SourceMask", frame);
+            processCompute.SetBuffer(1, "MinDistances", minDistancesBuffer);
+            processCompute.Dispatch(1, threadsX, threadsY, threadsZ);
+
             //step 2 write maximum of the min distances to MaxDistanceBuffer[0]
             //also reset the min distances to 0 during this kernel
-            processCompute.SetInt("MinDistancesLength",minDistancesBuffer.count);
-            processCompute.SetBuffer(2,"MaxOfMinDistances",maxDistanceBuffer);
-            processCompute.SetBuffer(2,"MinDistances",minDistancesBuffer);
-            processCompute.Dispatch(2,1,1,1);
-            
+            processCompute.SetInt("MinDistancesLength", minDistancesBuffer.count);
+            processCompute.SetBuffer(2, "MaxOfMinDistances", maxDistanceBuffer);
+            processCompute.SetBuffer(2, "MinDistances", minDistancesBuffer);
+            processCompute.Dispatch(2, 1, 1, 1);
+
             //step 3 write min distance / max of min to temp frame
-            CalcWorkSize( frame.width*frame.height, out threadsX, out threadsY, out threadsZ );
-            processCompute.SetTexture(3,"Source",frame);
-            processCompute.SetTexture(3,"SourceMask",frame);
-            processCompute.SetTexture(3,"Result",tempFrame);
-            processCompute.SetBuffer(3,"MinDistances",minDistancesBuffer);
-            processCompute.SetBuffer(3,"MaxOfMinDistances",maxDistanceBuffer);
-            processCompute.Dispatch(3,threadsX,threadsY,threadsZ);
-            
-            Graphics.Blit(tempFrame,frame);
-            
+            CalcWorkSize(frame.width * frame.height, out threadsX, out threadsY, out threadsZ);
+            processCompute.SetTexture(3, "Source", frame);
+            processCompute.SetTexture(3, "SourceMask", frame);
+            processCompute.SetTexture(3, "Result", tempFrame);
+            processCompute.SetBuffer(3, "MinDistances", minDistancesBuffer);
+            processCompute.SetBuffer(3, "MaxOfMinDistances", maxDistanceBuffer);
+            processCompute.Dispatch(3, threadsX, threadsY, threadsZ);
+
+            Graphics.Blit(tempFrame, frame);
+
             //convert 1D index to flattened octahedra coordinate
             int x;
             int y;

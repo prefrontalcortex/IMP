@@ -5,3 +5,6 @@ Library/
 Packages/
 ProjectSettings/
 Temp/
+.vs/
+Logs/
+obj/
